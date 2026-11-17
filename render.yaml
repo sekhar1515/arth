@@ -1,0 +1,57 @@
+# Render Blueprint for the Arth API on Render's free plan (Docker, 512 MB RAM).
+# Render dashboard → New → Blueprint → pick this repository. You'll be asked for the values marked sync: false.
+# The database lives on Neon (free) and the web app on Vercel (free). See deploy/FREE_HOSTING.md.
+services:
+  - type: web
+    name: arth-api
+    runtime: docker
+    plan: free
+    # Singapore is the closest Render region to India; create the Neon database in AWS Singapore too.
+    region: singapore
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+    envVars:
+      # Neon connection string, e.g. postgresql://user:pass@ep-xxx.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+      # Use the direct (non-pooled) one.
+      - key: DATABASE_URL
+        sync: false
+      # Your Vercel address, e.g. https://arth-yourname.vercel.app (used in e-mail links)
+      - key: PUBLIC_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MFA_ENCRYPTION_KEY
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: DEMO_ENABLED
+        value: "false"
+      - key: API_DOCS_ENABLED
+        value: "false"
+      # open, invite (also set REGISTRATION_INVITE_CODE) or closed
+      - key: REGISTRATION_MODE
+        value: open
+      - key: REGISTRATION_INVITE_CODE
+        sync: false
+      # Requests reach the API through Vercel, so allow a little headroom per address
+      - key: REGISTRATION_MAX_PER_HOUR
+        value: "20"
+      # Let the free Neon database sleep: no idle connections, and uptime pings don't touch the database
+      - key: HEALTH_CHECK_DB
+        value: "false"
+      - key: DB_POOL_MAX
+        value: "4"
+      - key: DB_POOL_MIN_IDLE
+        value: "0"
+      - key: DB_IDLE_TIMEOUT
+        value: "60000"
+      - key: DB_CONNECT_TIMEOUT
+        value: "60000"
+      - key: TOMCAT_MAX_THREADS
+        value: "20"
+      # Fits the JVM in 512 MB: tested at ~390 MB peak during price refreshes and a 3,000-row import
+      - key: JAVA_TOOL_OPTIONS
+        value: "-Xms48m -Xmx200m -XX:MinHeapFreeRatio=10 -XX:MaxHeapFreeRatio=30 -XX:+UseSerialGC -Xss256k -XX:ReservedCodeCacheSize=32m -XX:MaxMetaspaceSize=140m -XX:TieredStopAtLevel=1"

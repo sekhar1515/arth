@@ -1,0 +1,11 @@
+.env
+.env.production
+backups/
+backend/target/
+frontend/node_modules/
+frontend/.next/
+frontend/coverage/
+frontend/tsconfig.tsbuildinfo
+*.log
+.DS_Store
+.claude/

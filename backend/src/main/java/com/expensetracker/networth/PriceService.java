@@ -1,0 +1,207 @@
+package com.expensetracker.networth;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * Mutual fund NAVs from AMFI's public daily NAV file (official, free, no key). Stock and ETF prices come from your
+ * broker holdings export or manual updates: there is no free official real-time stock price API for India.
+ */
+@Service
+public class PriceService {
+
+    public record Scheme(String schemeCode, String name, String amc, String category, String isinGrowth, String isinReinvest,
+                         BigDecimal nav, LocalDate navDate) {
+    }
+
+    public record RefreshResult(boolean ok, int schemesLoaded, int holdingsUpdated, LocalDate latestNavDate, String message, Instant at) {
+    }
+
+    private static final Logger log = LoggerFactory.getLogger(PriceService.class);
+
+    static final String UPSERT_SCHEME = """
+            INSERT INTO mf_schemes (scheme_code, isin_growth, isin_reinvest, name, amc, category, nav, nav_date, updated_at)
+            VALUES (:code, :isinG, :isinR, :name, :amc, :category, :nav, :navDate, now())
+            ON CONFLICT (scheme_code) DO UPDATE SET
+              isin_growth = EXCLUDED.isin_growth, isin_reinvest = EXCLUDED.isin_reinvest, name = EXCLUDED.name,
+              amc = COALESCE(EXCLUDED.amc, mf_schemes.amc), category = COALESCE(EXCLUDED.category, mf_schemes.category),
+              nav = COALESCE(EXCLUDED.nav, mf_schemes.nav), nav_date = COALESCE(EXCLUDED.nav_date, mf_schemes.nav_date), updated_at = now()
+            """;
+    static final String SEARCH = """
+            SELECT scheme_code, name, amc, category, isin_growth, isin_reinvest, nav, nav_date FROM mf_schemes
+            WHERE scheme_code = :exact OR isin_growth = :exactUpper OR isin_reinvest = :exactUpper OR lower(name) LIKE :like
+            ORDER BY (lower(name) LIKE '%direct%' AND lower(name) LIKE '%growth%') DESC, name
+            LIMIT 25
+            """;
+    static final String BY_CODES = "SELECT scheme_code, name, amc, category, isin_growth, isin_reinvest, nav, nav_date FROM mf_schemes WHERE scheme_code IN (:codes)";
+    static final String BY_ISIN = "SELECT scheme_code, name, amc, category, isin_growth, isin_reinvest, nav, nav_date FROM mf_schemes WHERE isin_growth = :isin OR isin_reinvest = :isin LIMIT 1";
+
+    private final NamedParameterJdbcTemplate jdbc;
+    private final HoldingRepository holdings;
+    private final org.springframework.transaction.support.TransactionTemplate tx;
+    private final String amfiUrl;
+    private final boolean scheduleEnabled;
+    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).followRedirects(HttpClient.Redirect.NORMAL).build();
+    private final AtomicReference<RefreshResult> last = new AtomicReference<>();
+
+    public PriceService(NamedParameterJdbcTemplate jdbc, HoldingRepository holdings,
+                        org.springframework.transaction.PlatformTransactionManager txManager,
+                        @Value("${app.prices.amfi-url:https://portal.amfiindia.com/spages/NAVAll.txt}") String amfiUrl,
+                        @Value("${app.prices.amfi-schedule-enabled:true}") boolean scheduleEnabled) {
+        this.jdbc = jdbc;
+        this.holdings = holdings;
+        this.tx = new org.springframework.transaction.support.TransactionTemplate(txManager);
+        this.amfiUrl = amfiUrl;
+        this.scheduleEnabled = scheduleEnabled;
+    }
+
+    /** AMFI publishes the day's NAVs late evening; refresh after that. */
+    @Scheduled(cron = "0 15 23 * * *", zone = "Asia/Kolkata")
+    public void scheduledRefresh() {
+        if (scheduleEnabled) refreshMutualFunds();
+    }
+
+    /** The last refresh since start-up, or else what the cached NAVs say (so a restart doesn't hide their date). */
+    public Optional<RefreshResult> lastRefresh() {
+        RefreshResult r = last.get();
+        if (r != null) return Optional.of(r);
+        LocalDate latest = jdbc.queryForObject("SELECT max(nav_date) FROM mf_schemes", new MapSqlParameterSource(), LocalDate.class);
+        return latest == null ? Optional.empty() : Optional.of(new RefreshResult(true, 0, 0, latest, "Cached NAVs", null));
+    }
+
+    public RefreshResult refreshMutualFunds() {
+        String body;
+        try {
+            HttpResponse<String> res = http.send(HttpRequest.newBuilder(URI.create(amfiUrl)).timeout(Duration.ofSeconds(90))
+                    .header("User-Agent", "Arth personal finance").GET().build(), HttpResponse.BodyHandlers.ofString());
+            if (res.statusCode() != 200) {
+                return remember(new RefreshResult(false, 0, 0, null, "AMFI returned HTTP " + res.statusCode(), Instant.now()));
+            }
+            body = res.body();
+        } catch (Exception e) {
+            log.warn("AMFI NAV download failed: {}", e.toString());
+            return remember(new RefreshResult(false, 0, 0, null, "Couldn't reach AMFI (" + e.getClass().getSimpleName()
+                    + "). Check the server's internet access; prices will retry tonight.", Instant.now()));
+        }
+        final String file = body;
+        return tx.execute(status -> loadNavFile(file)); // self-call: run inside an explicit transaction
+    }
+
+    /** Loads a NAVAll.txt body: upserts the scheme cache and re-prices every mutual fund holding. Public for tests and manual uploads. */
+    @Transactional
+    public RefreshResult loadNavFile(String body) {
+        List<AmfiNavParser.NavRecord> records = AmfiNavParser.parse(body);
+        if (records.isEmpty()) return remember(new RefreshResult(false, 0, 0, null, "The NAV file had no schemes", Instant.now()));
+        List<SqlParameterSource> batch = new ArrayList<>(records.size());
+        LocalDate latest = null;
+        for (AmfiNavParser.NavRecord r : records) {
+            batch.add(new MapSqlParameterSource().addValue("code", r.schemeCode()).addValue("isinG", r.isinGrowth())
+                    .addValue("isinR", r.isinReinvest()).addValue("name", trim(r.name(), 300)).addValue("amc", trim(r.amc(), 150))
+                    .addValue("category", trim(r.category(), 200)).addValue("nav", r.nav()).addValue("navDate", r.date()));
+            if (r.date() != null && (latest == null || r.date().isAfter(latest))) latest = r.date();
+        }
+        for (int i = 0; i < batch.size(); i += 2000) {
+            jdbc.batchUpdate(UPSERT_SCHEME, batch.subList(i, Math.min(i + 2000, batch.size())).toArray(new SqlParameterSource[0]));
+        }
+        int updated = repriceFundHoldings();
+        return remember(new RefreshResult(true, records.size(), updated, latest, "Loaded " + records.size() + " schemes", Instant.now()));
+    }
+
+    /** Applies cached NAVs to fund holdings; links holdings that only have an ISIN to their AMFI scheme code. */
+    @Transactional
+    public int repriceFundHoldings() {
+        for (Holding h : holdings.findByArchivedFalseAndAssetClassAndSchemeCodeIsNullAndIsinIsNotNull(AssetClass.MUTUAL_FUND)) {
+            byIsin(h.getIsin()).ifPresent(s -> h.setSchemeCode(s.schemeCode()));
+        }
+        holdings.flush();
+        List<Holding> funds = holdings.findAll().stream()
+                .filter(h -> !h.isArchived() && h.getSchemeCode() != null && h.getValuationMethod() == ValuationMethod.MARKET_PRICE).toList();
+        if (funds.isEmpty()) return 0;
+        Map<String, Scheme> schemes = new HashMap<>();
+        jdbc.query(BY_CODES, new MapSqlParameterSource("codes", funds.stream().map(Holding::getSchemeCode).distinct().toList()), rs -> {
+            Scheme s = map(rs);
+            schemes.put(s.schemeCode(), s);
+        });
+        int n = 0;
+        for (Holding h : funds) {
+            Scheme s = schemes.get(h.getSchemeCode());
+            if (s == null || s.nav() == null || s.navDate() == null) continue;
+            Instant asOf = s.navDate().atTime(23, 0).atZone(com.expensetracker.common.TimeConfig.IST).toInstant();
+            if (h.getPriceAsOf() != null && !asOf.isAfter(h.getPriceAsOf()) && h.getPriceSource() != Holding.PriceSource.AMFI) continue;
+            h.applyPrice(s.nav(), asOf, Holding.PriceSource.AMFI);
+            n++;
+        }
+        return n;
+    }
+
+    public List<Scheme> search(String q) {
+        if (q == null || q.trim().length() < 2) return List.of();
+        String t = q.trim();
+        String like = "%" + t.toLowerCase().replace("%", "").replace("_", "").replaceAll("\\s+", "%") + "%";
+        List<Scheme> out = new ArrayList<>();
+        jdbc.query(SEARCH, new MapSqlParameterSource().addValue("exact", t).addValue("exactUpper", t.toUpperCase()).addValue("like", like),
+                rs -> {
+                    out.add(map(rs));
+                });
+        return out;
+    }
+
+    public Optional<Scheme> byCode(String code) {
+        if (code == null) return Optional.empty();
+        List<Scheme> out = new ArrayList<>();
+        jdbc.query(BY_CODES, new MapSqlParameterSource("codes", List.of(code)), rs -> {
+            out.add(map(rs));
+        });
+        return out.stream().findFirst();
+    }
+
+    public Optional<Scheme> byIsin(String isin) {
+        if (isin == null) return Optional.empty();
+        List<Scheme> out = new ArrayList<>();
+        jdbc.query(BY_ISIN, new MapSqlParameterSource("isin", isin), rs -> {
+            out.add(map(rs));
+        });
+        return out.stream().findFirst();
+    }
+
+    public boolean hasSchemeCache() {
+        Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM (SELECT 1 FROM mf_schemes LIMIT 1) x", new MapSqlParameterSource(), Integer.class);
+        return n != null && n > 0;
+    }
+
+    private static Scheme map(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return new Scheme(rs.getString("scheme_code"), rs.getString("name"), rs.getString("amc"), rs.getString("category"),
+                rs.getString("isin_growth"), rs.getString("isin_reinvest"), rs.getBigDecimal("nav"), rs.getObject("nav_date", LocalDate.class));
+    }
+
+    private RefreshResult remember(RefreshResult r) {
+        last.set(r);
+        return r;
+    }
+
+    private static String trim(String s, int max) {
+        return s == null ? null : (s.length() > max ? s.substring(0, max) : s);
+    }
+}

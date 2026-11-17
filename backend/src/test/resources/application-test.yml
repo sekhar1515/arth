@@ -1,0 +1,11 @@
+app:
+  security:
+    jwt-secret: dGVzdC1zZWNyZXQtdGhhdC1pcy1kZWZpbml0ZWx5LWxvbmctZW5vdWdoLTEyMzQ1Njc4OTA=
+    cookie-secure: false
+  registration:
+    max-per-hour: 100000
+  demo:
+    enabled: false
+logging:
+  level:
+    com.expensetracker: WARN

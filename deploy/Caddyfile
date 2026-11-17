@@ -1,0 +1,18 @@
+# Automatic HTTPS (Let's Encrypt) for $DOMAIN. Set DOMAIN=localhost to try it locally with a self-signed certificate.
+{
+	email {$ACME_EMAIL:admin@localhost}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy same-origin
+		-Server
+	}
+
+	# The web app serves pages and proxies /api to the backend over the private network.
+	reverse_proxy frontend:3000
+}

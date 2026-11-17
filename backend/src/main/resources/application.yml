@@ -1,0 +1,98 @@
+spring:
+  application:
+    name: arth
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/arth}
+    username: ${DB_USER:arth}
+    password: ${DB_PASSWORD:arth}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      # Free serverless databases (Neon) sleep only when no connections are open: set DB_POOL_MIN_IDLE=0
+      # and DB_IDLE_TIMEOUT=60000 there so the pool empties when the app is idle.
+      minimum-idle: ${DB_POOL_MIN_IDLE:10}
+      idle-timeout: ${DB_IDLE_TIMEOUT:600000}
+      connection-timeout: ${DB_CONNECT_TIMEOUT:30000}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: always
+
+server:
+  port: ${PORT:8080}
+  tomcat:
+    threads:
+      max: ${TOMCAT_MAX_THREADS:200}
+  forward-headers-strategy: framework
+  error:
+    include-message: never
+    include-stacktrace: never
+
+app:
+  security:
+    # Required. 32+ random bytes, base64. Generate with: openssl rand -base64 48
+    jwt-secret: ${JWT_SECRET}
+    session-ttl: ${SESSION_TTL:PT12H}
+    # Set false only for plain-http local development
+    cookie-secure: ${COOKIE_SECURE:true}
+    # Encrypts two-factor secrets at rest. Recommended: openssl rand -base64 32. Falls back to a key derived from JWT_SECRET.
+    mfa-key: ${MFA_ENCRYPTION_KEY:}
+  # Where links in e-mails point
+  public-url: ${PUBLIC_URL:http://localhost:3000}
+  mail:
+    # From address for e-mail notifications. E-mail is off unless SPRING_MAIL_HOST and this are set.
+    from: ${MAIL_FROM:}
+  registration:
+    # open (anyone can sign up), invite (needs the code below) or closed
+    mode: ${REGISTRATION_MODE:open}
+    invite-code: ${REGISTRATION_INVITE_CODE:}
+    max-per-hour: ${REGISTRATION_MAX_PER_HOUR:5}
+  demo:
+    enabled: ${DEMO_ENABLED:false}
+    email: ${DEMO_EMAIL:demo@arth.local}
+    password: ${DEMO_PASSWORD:demo-password-2026}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+  health:
+    # e-mail is optional; an unset SMTP server must not mark the app unhealthy
+    mail:
+      enabled: false
+    # HEALTH_CHECK_DB=false lets uptime pings keep the app awake without waking a sleeping serverless database
+    db:
+      enabled: ${HEALTH_CHECK_DB:true}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    # turn off on public servers with API_DOCS_ENABLED=false
+    enabled: ${API_DOCS_ENABLED:true}
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: ${API_DOCS_ENABLED:true}
+
+logging:
+  structured:
+    format:
+      console: ${LOG_FORMAT:}
+  level:
+    root: INFO
+    com.expensetracker: INFO

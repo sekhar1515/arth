@@ -1,0 +1,134 @@
+@import "tailwindcss";
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/manrope";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Arth tokens. Peacock teal carries the brand, marigold is reserved for "needs your attention",
+ * sindoor red is money out and leaf green is money in. Cool paper background, not cream.
+ */
+:root {
+  --paper: #f5f8f7;
+  --surface: #ffffff;
+  --surface-2: #eef3f2;
+  --line: #dbe5e3;
+  --ink: #12252b;
+  --ink-2: #4a5f65;
+  --ink-3: #7c8f94;
+  --peacock: #0f5e63;
+  --peacock-2: #14868c;
+  --peacock-soft: #dcefee;
+  --marigold: #e8a317;
+  --marigold-soft: #fdf1d6;
+  --marigold-ink: #7a5200;
+  --out: #c8372d;
+  --out-soft: #fbe5e3;
+  --in: #1f8a5b;
+  --in-soft: #dff3e9;
+  --ring: #14868c;
+  --shadow: 0 1px 0 rgba(18, 37, 43, 0.04), 0 8px 24px -12px rgba(15, 94, 99, 0.18);
+}
+
+.dark {
+  --paper: #0b1618;
+  --surface: #11211f;
+  --surface-2: #172b2a;
+  --line: #22393a;
+  --ink: #e6efee;
+  --ink-2: #a8bcbc;
+  --ink-3: #708685;
+  --peacock: #3fb5b4;
+  --peacock-2: #5fd0cc;
+  --peacock-soft: #12393a;
+  --marigold: #f2b73a;
+  --marigold-soft: #3a2c0c;
+  --marigold-ink: #f7d68a;
+  --out: #ef6b5f;
+  --out-soft: #3a1714;
+  --in: #4cc48b;
+  --in-soft: #10301f;
+  --ring: #5fd0cc;
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 10px 30px -14px rgba(0, 0, 0, 0.6);
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-peacock: var(--peacock);
+  --color-peacock-2: var(--peacock-2);
+  --color-peacock-soft: var(--peacock-soft);
+  --color-marigold: var(--marigold);
+  --color-marigold-soft: var(--marigold-soft);
+  --color-marigold-ink: var(--marigold-ink);
+  --color-out: var(--out);
+  --color-out-soft: var(--out-soft);
+  --color-in: var(--in);
+  --color-in-soft: var(--in-soft);
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Manrope Variable", ui-sans-serif, system-ui, sans-serif;
+  --shadow-lift: var(--shadow);
+}
+
+html {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-height: 100dvh;
+}
+
+.num {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: -0.01em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* The one orchestrated moment: the money-flow bar grows in on first paint. */
+@keyframes flow-in {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.flow-in {
+  transform-origin: left center;
+  animation: flow-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes slip-out {
+  to {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+}
+.slip-out {
+  animation: slip-out 220ms ease-in forwards;
+}

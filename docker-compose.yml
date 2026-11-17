@@ -1,0 +1,61 @@
+# Local development stack: PostgreSQL + Spring Boot API + Next.js PWA.
+#   cp .env.example .env   (then set JWT_SECRET)
+#   docker compose up --build
+# App: http://localhost:3000   API docs: http://localhost:8080/swagger-ui.html
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: arth
+      POSTGRES_USER: arth
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-arth}
+    volumes:
+      - arth-db:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arth -d arth"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/arth
+      DB_USER: arth
+      DB_PASSWORD: ${DB_PASSWORD:-arth}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env (openssl rand -base64 48)}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      DEMO_ENABLED: ${DEMO_ENABLED:-true}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-demo-password-2026}
+      LOG_FORMAT: ${LOG_FORMAT:-}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:-}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: ${SPRING_MAIL_SMTP_AUTH:-true}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: ${SPRING_MAIL_STARTTLS:-true}
+      MAIL_FROM: ${MAIL_FROM:-}
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        API_ORIGIN: http://backend:8080
+    depends_on:
+      - backend
+    environment:
+      API_ORIGIN: http://backend:8080
+    ports:
+      - "3000:3000"
+
+volumes:
+  arth-db:
