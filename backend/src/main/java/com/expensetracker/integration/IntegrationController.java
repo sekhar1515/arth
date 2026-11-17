@@ -71,9 +71,32 @@ public class IntegrationController {
     public CsvImportService.ImportResult importCsv(@RequestParam UUID accountId, @RequestPart("file") MultipartFile file) throws IOException {
         if (file.isEmpty()) throw ApiException.badRequest("The file is empty");
         String name = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
+        if (com.expensetracker.integration.parsing.SpreadsheetReader.isSpreadsheet(name)) {
+            return csvImport.importStatement(CurrentUser.id(), accountId, statementSheet(file.getBytes()));
+        }
         if (!name.endsWith(".csv") && !name.endsWith(".txt")) {
-            throw ApiException.badRequest("Only CSV statements are supported right now. Export your statement as CSV/Delimited.");
+            throw ApiException.badRequest("Upload the statement as Excel (.xlsx or .xls) or CSV.");
         }
         return csvImport.importStatement(CurrentUser.id(), accountId, new String(file.getBytes(), StandardCharsets.UTF_8));
+    }
+
+    /** The first sheet that holds a recognisable transaction table (banks often put a summary sheet first). */
+    static String statementSheet(byte[] bytes) {
+        java.util.List<com.expensetracker.integration.parsing.SpreadsheetReader.SheetTable> sheets;
+        try {
+            sheets = com.expensetracker.integration.parsing.SpreadsheetReader.read(bytes);
+        } catch (IllegalArgumentException e) {
+            throw ApiException.unprocessable(e.getMessage());
+        }
+        String firstProblem = null;
+        for (var sheet : sheets) {
+            try {
+                com.expensetracker.integration.parsing.CsvStatementParser.parse(sheet.csv());
+                return sheet.csv();
+            } catch (com.expensetracker.integration.parsing.CsvStatementParser.UnrecognisedFormatException e) {
+                if (firstProblem == null) firstProblem = e.getMessage();
+            }
+        }
+        throw ApiException.unprocessable(firstProblem != null ? firstProblem : "No sheet in this file looks like a statement");
     }
 }

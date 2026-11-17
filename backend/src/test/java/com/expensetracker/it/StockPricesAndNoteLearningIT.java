@@ -102,4 +102,40 @@ class StockPricesAndNoteLearningIT extends IntegrationTestBase {
         call(s, org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/auth/me"), 405);
         call(s, org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/networth/securities"), 400);
     }
+
+    @Test
+    void excelStatementsAndHoldingsImportLikeCsv() throws Exception {
+        Session s = register();
+        UUID acc = createAccount(s, "HDFC", "BANK", "3333", "10000");
+        MockMultipartFile xlsx = new MockMultipartFile("file", "Statement Nov.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", com.expensetracker.integration.parsing.SpreadsheetFixtures.statement(false));
+        JsonNode r = call(s, multipart("/api/imports/csv").file(xlsx).param("accountId", acc.toString()), 200);
+        assertEquals(3, r.get("imported").asInt());
+        assertEquals("Household Help", find(s, "maid").get("suggestedCategory").get("name").asText());
+        // the same statement as legacy .xls is recognised as already imported
+        MockMultipartFile xls = new MockMultipartFile("file", "statement.xls", "application/vnd.ms-excel",
+                com.expensetracker.integration.parsing.SpreadsheetFixtures.statement(true));
+        assertEquals(3, call(s, multipart("/api/imports/csv").file(xls).param("accountId", acc.toString()), 200).get("alreadyImported").asInt());
+
+        MockMultipartFile html = new MockMultipartFile("file", "OpTransactionHistory.xls", "application/vnd.ms-excel",
+                com.expensetracker.integration.parsing.SpreadsheetFixtures.HTML_XLS.getBytes(StandardCharsets.UTF_8));
+        UUID acc2 = createAccount(s, "SBI", "BANK", "1234", "50000");
+        assertEquals(2, call(s, multipart("/api/imports/csv").file(html).param("accountId", acc2.toString()), 200).get("imported").asInt());
+
+        MockMultipartFile holdings = new MockMultipartFile("file", "holdings.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", com.expensetracker.integration.parsing.SpreadsheetFixtures.holdings());
+        JsonNode h = call(s, multipart("/api/networth/holdings/import").file(holdings).param("platform", "Zerodha"), 200);
+        assertEquals(2, h.get("created").asInt(), "one stock from the Equity sheet, one fund from the Mutual Funds sheet");
+        JsonNode list = getJson(s, "/api/networth/holdings");
+        assertEquals(2, list.size());
+        boolean fund = false, stock = false;
+        for (JsonNode x : list) {
+            if (x.get("assetClass").asText().equals("MUTUAL_FUND")) fund = true;
+            if (x.get("assetClass").asText().equals("STOCK")) stock = true;
+        }
+        assertTrue(fund && stock);
+
+        MockMultipartFile junk = new MockMultipartFile("file", "broken.xlsx", "application/octet-stream", "nope".getBytes());
+        call(s, multipart("/api/networth/holdings/import").file(junk), 422);
+    }
 }

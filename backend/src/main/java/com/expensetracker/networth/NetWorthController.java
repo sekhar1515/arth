@@ -111,11 +111,49 @@ public class NetWorthController {
                                                       @RequestParam(required = false) AssetClass assetClass) throws IOException {
         if (file.isEmpty()) throw ApiException.badRequest("The file is empty");
         String name = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
-        if (!name.endsWith(".csv") && !name.endsWith(".txt")) throw ApiException.badRequest("Export your holdings as CSV and upload that file");
         UUID userId = CurrentUser.id();
-        var result = holdings.importCsv(userId, new String(file.getBytes(), StandardCharsets.UTF_8), platform, assetClass);
+        HoldingService.ImportResult result;
+        if (com.expensetracker.integration.parsing.SpreadsheetReader.isSpreadsheet(name)) {
+            result = importSpreadsheet(userId, file.getBytes(), platform, assetClass);
+        } else if (name.endsWith(".csv") || name.endsWith(".txt")) {
+            result = holdings.importCsv(userId, new String(file.getBytes(), StandardCharsets.UTF_8), platform, assetClass);
+        } else {
+            throw ApiException.badRequest("Upload your holdings as Excel (.xlsx or .xls) or CSV");
+        }
         netWorth.snapshot(userId);
         return result;
+    }
+
+    /** Imports every sheet that holds a holdings table (e.g. Zerodha Console's Equity and Mutual Funds sheets) and adds up the results. */
+    private HoldingService.ImportResult importSpreadsheet(UUID userId, byte[] bytes, String platform, AssetClass assetClass) {
+        List<com.expensetracker.integration.parsing.SpreadsheetReader.SheetTable> sheets;
+        try {
+            sheets = com.expensetracker.integration.parsing.SpreadsheetReader.read(bytes);
+        } catch (IllegalArgumentException e) {
+            throw ApiException.unprocessable(e.getMessage());
+        }
+        int rows = 0, created = 0, updated = 0, linked = 0;
+        List<String> errors = new java.util.ArrayList<>();
+        String firstProblem = null;
+        boolean any = false;
+        for (var sheet : sheets) {
+            try {
+                HoldingsCsvParser.parse(sheet.csv());
+            } catch (IllegalArgumentException e) {
+                if (firstProblem == null) firstProblem = e.getMessage();
+                continue;
+            }
+            var r = holdings.importCsv(userId, sheet.csv(), platform, assetClass);
+            any = true;
+            rows += r.rows();
+            created += r.created();
+            updated += r.updated();
+            linked += r.linkedToAmfi();
+            String prefix = sheets.size() > 1 ? sheet.name() + ": " : "";
+            r.errors().forEach(e -> errors.add(prefix + e));
+        }
+        if (!any) throw ApiException.unprocessable(firstProblem != null ? firstProblem : "No sheet in this file looks like a holdings list");
+        return new HoldingService.ImportResult(rows, created, updated, linked, errors);
     }
 
     // ---------------------------------------------------------------- liabilities

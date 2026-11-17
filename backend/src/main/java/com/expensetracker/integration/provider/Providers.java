@@ -35,12 +35,12 @@ public class Providers {
 
     @Bean
     IntegrationProvider csvStatementProvider() {
-        return new Simple(new ProviderDescriptor(CSV_STATEMENT, "Bank statement (CSV)",
-                "Import the statement CSV your bank's net-banking site exports. Re-importing the same file never creates duplicates.",
+        return new Simple(new ProviderDescriptor(CSV_STATEMENT, "Bank statement (Excel or CSV)",
+                "Import the Excel (.xlsx/.xls) or CSV statement your bank's net-banking site exports, or your own sheet. Re-importing the same file never creates duplicates.",
                 Availability.AVAILABLE, ConnectionMode.FILE_UPLOAD, false, false, false,
                 "Every debit and credit with narration, reference and running balance", "When you upload (monthly works well)",
-                "XLS and PDF statements are planned. Export as CSV for now.",
-                "Net banking → Account statement → choose period → download as CSV/Delimited"), SourceType.CSV_IMPORT);
+                "PDF statements are planned. Password-protected Excel files must be saved without the password first.",
+                "Net banking → Account statement → choose period → download as Excel or CSV"), SourceType.CSV_IMPORT);
     }
 
     @Bean

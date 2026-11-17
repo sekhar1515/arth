@@ -374,9 +374,9 @@ export function ImportHoldingsDialog({ open, onOpenChange }: { open: boolean; on
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title="Import holdings" description="Download your holdings as CSV from your broker or fund app and upload it. Re-import each month: existing holdings are updated, not duplicated." wide>
         <ul className="mb-4 space-y-1 text-[13px] text-ink-2">
-          <li><strong className="text-ink">Zerodha:</strong> Kite → Holdings → Download (CSV), or Console → Portfolio → Holdings.</li>
-          <li><strong className="text-ink">Groww:</strong> Stocks or Mutual Funds → Holdings → Download statement, then save the sheet as CSV.</li>
-          <li><strong className="text-ink">Others:</strong> any CSV with a name/ISIN column and quantity/units, plus price, value or average cost.</li>
+          <li><strong className="text-ink">Zerodha:</strong> Kite → Holdings → Download, or Console → Portfolio → Holdings → Download (Excel works; both the Equity and Mutual Funds sheets are read).</li>
+          <li><strong className="text-ink">Groww:</strong> Stocks or Mutual Funds → Holdings → Download statement (Excel or CSV).</li>
+          <li><strong className="text-ink">Others:</strong> any Excel or CSV file with a name/ISIN column and quantity/units, plus price, value or average cost.</li>
         </ul>
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-56"><Field label="From" htmlFor="imp-platform">
@@ -384,8 +384,8 @@ export function ImportHoldingsDialog({ open, onOpenChange }: { open: boolean; on
               {PLATFORMS.map((p) => <option key={p}>{p}</option>)}
             </Select>
           </Field></div>
-          <input ref={ref} id="holdings-file" type="file" accept=".csv,.txt,text/csv" className="sr-only" onChange={(e) => upload(e.target.files?.[0])} />
-          <Button asChild disabled={busy}><label htmlFor="holdings-file" className="cursor-pointer"><FileUp /> {busy ? "Importing…" : "Choose CSV file"}</label></Button>
+          <input ref={ref} id="holdings-file" type="file" accept=".csv,.txt,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" className="sr-only" onChange={(e) => upload(e.target.files?.[0])} />
+          <Button asChild disabled={busy}><label htmlFor="holdings-file" className="cursor-pointer"><FileUp /> {busy ? "Importing…" : "Choose Excel or CSV file"}</label></Button>
         </div>
         {result && (
           <div className="mt-4 rounded-2xl bg-surface-2 p-4 text-sm">

@@ -17,6 +17,12 @@ _Last updated: 17 November 2026_
 
 `mvn verify` now runs the integration tests too (the Failsafe plugin was missing, so they were silently skipped before).
 
+## Completed (milestone 4c: Excel files)
+- **Bank statements and holdings can be Excel**: `.xlsx`, legacy `.xls`, and the HTML "xls" files some Indian banks send. Excel dates become real dates and numbers stay exact, whatever the sheet's display format.
+- Statements: the first sheet with a transaction table is used (summary sheets are skipped). Holdings: every sheet with a holdings table is imported (e.g. Zerodha Console's Equity and Mutual Funds sheets) and the results added together.
+- Clear messages for password-protected files ("save a copy without the password"), unreadable files and files over 5 MB.
+- Samples: `docs/samples/personal-sheet-sample.xlsx` and `docs/samples/holdings-sample.xlsx`.
+
 ## Completed (milestone 4b: free hosting)
 - **Free deployment path:** Vercel + Render + Neon (`render.yaml`, `.github/workflows/keep-awake.yml`, `deploy/FREE_HOSTING.md`).
 - `DATABASE_URL` in the `postgresql://user:pass@host/db?sslmode=require` form that hosted providers give is accepted directly.
@@ -93,7 +99,7 @@ _Last updated: 17 November 2026_
 - The demo account now includes budgets, confirmed subscriptions, card details and two goals.
 
 ## Pending
-- **Phase 5:** XLS/PDF statements, PhonePe statement import, Gmail OAuth, scheduler-driven sync.
+- **Phase 5:** PDF statements, PhonePe statement import, Gmail OAuth, scheduler-driven sync.
 - **Net worth, next:** CAMS/KFintech CAS PDF import, per-purchase lots for XIRR and capital gains, linking SIP debits to fund units.
 - **Phase 7:** at-rest encryption of raw alert payloads, Redis-backed rate limiting, monitoring, backups, Playwright end-to-end tests, web push (background notifications when no tab is open).
 
@@ -114,7 +120,7 @@ _Last updated: 17 November 2026_
 See `docs/FEASIBILITY.md`. Working now: manual entry, CSV statements, SMS forwarder webhook, Gmail Apps Script webhook. Planned: Gmail API, PhonePe statement. Unavailable: Account Aggregator (needs a regulated FIU), PhonePe API (no consumer API exists).
 
 ## Test results (17 November 2026)
-- Backend: `TEST_DB_URL=jdbc:postgresql://localhost:5432/arth_test mvn verify`: 88 unit + 49 integration, all passing.
+- Backend: `TEST_DB_URL=jdbc:postgresql://localhost:5432/arth_test mvn verify`: 93 unit + 50 integration, all passing.
 - Unknown URLs, wrong methods and missing parameters now return 404/405/400 instead of 500 (and no longer log stack traces).
 - Frontend: `npm run lint`, `npm test` (22 passing) and `npm run build`.
 

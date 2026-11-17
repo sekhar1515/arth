@@ -52,7 +52,8 @@ function CsvImport({ accounts }: { accounts: Account[] }) {
       <div className="mb-4 rounded-2xl border border-peacock-2/30 bg-peacock-soft/60 p-4 text-[13px] text-ink-2">
         <p className="font-semibold text-peacock">Tell Arth what each payment was for</p>
         <p className="mt-1">
-          Add a <strong>Note</strong> column (&ldquo;sabzi&rdquo;, &ldquo;rent nov&rdquo;, &ldquo;petrol&rdquo;, &ldquo;maid salary&rdquo;) and Arth files each payment from it, even when you pay the same person for different things.
+          Upload your bank&apos;s statement as Excel (.xlsx or .xls) or CSV, or your own sheet with <strong>Date, Description, Amount, Type</strong>: write what each payment was for in Description (&ldquo;maid salary&rdquo;, &ldquo;petrol for bike&rdquo;).
+          Next to a bank narration, add a <strong>Note</strong> column (&ldquo;sabzi&rdquo;, &ldquo;rent nov&rdquo;, &ldquo;petrol&rdquo;, &ldquo;maid salary&rdquo;) and Arth files each payment from it, even when you pay the same person for different things.
           Add a <strong>Category</strong> column to file a row directly. The note you type in PhonePe or Google Pay is also read from the bank narration when your bank keeps it.
           Already imported a statement? Add notes to it and import it again: existing rows get updated, not duplicated.
         </p>
@@ -64,8 +65,8 @@ function CsvImport({ accounts }: { accounts: Account[] }) {
             {usable.map((a) => <option key={a.id} value={a.id}>{a.name}{a.last4 ? ` ••${a.last4}` : ""}</option>)}
           </Select>
         </Field></div>
-        <input ref={fileRef} type="file" accept=".csv,.txt,text/csv" className="sr-only" id="csv-file" onChange={(e) => onFile(e.target.files?.[0])} />
-        <Button asChild disabled={imp.isPending}><label htmlFor="csv-file" className="cursor-pointer"><FileUp /> {imp.isPending ? "Importing…" : "Choose CSV file"}</label></Button>
+        <input ref={fileRef} type="file" accept=".csv,.txt,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" className="sr-only" id="csv-file" onChange={(e) => onFile(e.target.files?.[0])} />
+        <Button asChild disabled={imp.isPending}><label htmlFor="csv-file" className="cursor-pointer"><FileUp /> {imp.isPending ? "Importing…" : "Choose Excel or CSV file"}</label></Button>
       </div>
       {result && (
         <div className="mt-4 rounded-2xl bg-surface-2 p-4 text-sm">

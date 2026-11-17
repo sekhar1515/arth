@@ -44,7 +44,7 @@ cd frontend && npm run lint       # type check
 
 ## Getting transactions in
 1. **Accounts:** add each bank account and card with its last 4 digits (alerts are matched on them).
-2. **Statements:** Integrations → Bank statement (CSV). A sample is in `docs/samples/`.
+2. **Statements:** Integrations → Bank statement. Excel (.xlsx/.xls) or CSV both work; samples are in `docs/samples/`.
    - Keeping your own sheet? `Date, Description, Amount, Type` is enough. Write what each payment was for in Description ("maid salary", "petrol for bike") and Arth reads it as your note.
    - Or add a **Note** column next to the bank's narration, saying what each payment was for ("sabzi", "rent nov", "petrol"). Arth files payments from it and learns from your confirmations.
    - Add a **Category** column to file rows directly. Template: `frontend/public/templates/arth-transactions-template.csv`.
@@ -52,7 +52,7 @@ cd frontend && npm run lint       # type check
 3. **Real-time alerts:** Integrations → connect *Bank SMS alerts* or *Bank e-mail alerts* and follow `docs/integrations/gmail-apps-script.md`.
 
 ## Net worth
-Net Worth → add mutual funds (search by name; NAVs refresh nightly from AMFI), stocks, ETFs and SGBs (search by symbol; closing prices refresh every trading evening from NSE/BSE), FDs, PPF/EPF/NPS, gold, property and loans. You can also import a holdings CSV from Zerodha, Groww and similar apps; re-import monthly to keep it current. Bank, cash and card balances come from your accounts automatically.
+Net Worth → add mutual funds (search by name; NAVs refresh nightly from AMFI), stocks, ETFs and SGBs (search by symbol; closing prices refresh every trading evening from NSE/BSE), FDs, PPF/EPF/NPS, gold, property and loans. You can also import a holdings file (Excel or CSV) from Zerodha, Groww and similar apps; re-import monthly to keep it current. Bank, cash and card balances come from your accounts automatically.
 
 ## Planning and insight
 - **Budgets:** weekly, monthly or yearly (April–March), overall or per category, optional rollover, alerts at 50/75/90/100%, forecast and suggested amount.
