@@ -92,6 +92,18 @@ public class NetWorthController {
         return dto;
     }
 
+    /** "Get latest price": makes sure today's official NAVs/closes are loaded, then prices this holding from them. */
+    @PostMapping("/holdings/{id}/latest-price")
+    public HoldingService.LatestPrice latestPrice(@PathVariable UUID id) {
+        UUID userId = CurrentUser.id();
+        var h = holdings.get(userId, id);
+        boolean fund = h.assetClass() == AssetClass.MUTUAL_FUND;
+        refresher.ensureFresh(fund, !fund && StockPriceService.LISTED.contains(h.assetClass()));
+        var result = holdings.applyLatestPrice(userId, id);
+        netWorth.snapshot(userId);
+        return result;
+    }
+
     @PostMapping("/holdings/{id}/archive")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void archiveHolding(@PathVariable UUID id) {

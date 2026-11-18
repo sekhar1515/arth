@@ -6,7 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PageHeader } from "@/components/layout/app-shell";
-import { BUCKET_LABEL, HoldingDialog, ImportHoldingsDialog, LiabilityDialog, SourceBadge, UpdateValueDialog } from "@/components/finance/networth-dialogs";
+import { BUCKET_LABEL, canFetchPrice, HoldingDialog, ImportHoldingsDialog, LiabilityDialog, SourceBadge, UpdateValueDialog } from "@/components/finance/networth-dialogs";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm";
 import { Menu, MenuItem } from "@/components/ui/menu";
@@ -193,7 +193,7 @@ export default function NetWorthPage() {
             <div className="min-w-0 space-y-4">
               <h2 className="font-display text-lg font-semibold">What you own</h2>
               {s.assetGroups.map((g) => (
-                <GroupCard key={g.key} g={g} onAction={(item, action) => {
+                <GroupCard key={g.key} g={g} fetchable={(id) => { const h = holdings.data?.find((x) => x.id === id); return !!h && canFetchPrice(h); }} onAction={(item, action) => {
                   if (item.kind === "ACCOUNT") return;
                   const h = holdings.data?.find((x) => x.id === item.id);
                   if (!h) return;
@@ -239,7 +239,7 @@ export default function NetWorthPage() {
   );
 }
 
-function GroupCard({ g, negative, onAction }: { g: NetWorthGroup; negative?: boolean; onAction: (item: NetWorthItem, action: "update" | "edit" | "remove") => void }) {
+function GroupCard({ g, negative, onAction, fetchable }: { g: NetWorthGroup; negative?: boolean; onAction: (item: NetWorthItem, action: "update" | "edit" | "remove") => void; fetchable?: (id: string) => boolean }) {
   return (
     <section className="overflow-hidden rounded-3xl border border-line bg-surface">
       <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-line px-5 py-3.5">
@@ -266,7 +266,7 @@ function GroupCard({ g, negative, onAction }: { g: NetWorthGroup; negative?: boo
             {i.kind !== "ACCOUNT" && (
               <Menu trigger={<Button variant="ghost" size="icon" aria-label={`Actions for ${i.name}`}><MoreHorizontal /></Button>}>
                 {i.kind === "HOLDING" && !i.source.startsWith("Estimated") && (
-                  <MenuItem onSelect={() => onAction(i, "update")}><RefreshCw className="size-4 text-ink-3" /> Update value</MenuItem>
+                  <MenuItem onSelect={() => onAction(i, "update")}><RefreshCw className="size-4 text-ink-3" /> {fetchable?.(i.id) ? "Get latest price" : "Update value"}</MenuItem>
                 )}
                 <MenuItem onSelect={() => onAction(i, "edit")}><Pencil className="size-4 text-ink-3" /> Edit</MenuItem>
                 <MenuItem danger onSelect={() => onAction(i, "remove")}><Trash2 className="size-4" /> Delete</MenuItem>

@@ -79,6 +79,54 @@ public class HoldingService {
         return toDto(h, TimeConfig.today(clock));
     }
 
+    public record LatestPrice(HoldingDto holding, BigDecimal previousPrice, BigDecimal price, LocalDate priceDate, String source, String message) {
+    }
+
+    @Transactional(readOnly = true)
+    public HoldingDto get(UUID userId, UUID id) {
+        return toDto(require(userId, id), TimeConfig.today(clock));
+    }
+
+    /**
+     * Applies the newest cached official price to one holding (AMFI NAV for a fund, NSE/BSE close for a listed
+     * security), replacing a price typed by hand, so automatic updates carry on from here.
+     */
+    @Transactional
+    public LatestPrice applyLatestPrice(UUID userId, UUID id) {
+        Holding h = require(userId, id);
+        if (h.getValuationMethod() != ValuationMethod.MARKET_PRICE) {
+            throw ApiException.unprocessable("This one is valued from figures you enter, so there's no market price to fetch. Use Edit to change its value.");
+        }
+        BigDecimal before = h.getCurrentPrice();
+        if (h.getAssetClass() == AssetClass.MUTUAL_FUND) {
+            if (h.getSchemeCode() == null && h.getIsin() != null) prices.byIsin(h.getIsin()).ifPresent(s -> h.setSchemeCode(s.schemeCode()));
+            if (h.getSchemeCode() == null) {
+                throw ApiException.unprocessable("This fund isn't linked to an AMFI scheme, so its NAV can't be looked up. "
+                        + "Choose Edit, delete it and add it again by searching for the fund, or import your holdings file with ISINs.");
+            }
+            var scheme = prices.byCode(h.getSchemeCode()).orElseThrow(() -> ApiException.unprocessable(
+                    "AMFI's fund list isn't loaded yet. Try again in a minute."));
+            if (scheme.nav() == null || scheme.navDate() == null) {
+                throw ApiException.unprocessable("AMFI has no current NAV for this scheme (it may be closed or merged).");
+            }
+            h.applyPrice(scheme.nav(), scheme.navDate().atTime(23, 0).atZone(TimeConfig.IST).toInstant(), Holding.PriceSource.AMFI);
+            return new LatestPrice(toDto(h, TimeConfig.today(clock)), before, scheme.nav(), scheme.navDate(), "AMFI NAV",
+                    "NAV ₹" + scheme.nav().stripTrailingZeros().toPlainString() + " for " + scheme.navDate() + " from AMFI");
+        }
+        if (StockPriceService.LISTED.contains(h.getAssetClass())) {
+            if (h.getIsin() == null && h.getSymbol() == null) {
+                throw ApiException.unprocessable("Add the NSE/BSE symbol or ISIN (Edit) so its price can be looked up.");
+            }
+            var sec = stockPrices.find(h.getIsin(), h.getSymbol()).orElseThrow(() -> ApiException.unprocessable(
+                    "Couldn't find " + (h.getSymbol() != null ? h.getSymbol() : h.getIsin()) + " in today's NSE/BSE list. Check the symbol or ISIN with Edit."));
+            if (h.getIsin() == null) h.setIsin(sec.isin());
+            h.applyPrice(sec.close(), StockPriceService.closeOf(sec.priceDate()), Holding.PriceSource.EXCHANGE);
+            return new LatestPrice(toDto(h, TimeConfig.today(clock)), before, sec.close(), sec.priceDate(), sec.exchange() + " close",
+                    sec.exchange() + " close ₹" + sec.close().stripTrailingZeros().toPlainString() + " for " + sec.priceDate());
+        }
+        throw ApiException.unprocessable("There's no free official price feed for this kind of asset. Use \"Enter a price yourself\".");
+    }
+
     @Transactional
     public HoldingDto updatePrice(UUID userId, UUID id, BigDecimal price) {
         Holding h = require(userId, id);

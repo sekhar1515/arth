@@ -1,6 +1,6 @@
 "use client";
 
-import { FileUp, Search } from "lucide-react";
+import { FileUp, RefreshCw, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
@@ -271,25 +271,92 @@ export function HoldingDialog({ holding, open, onOpenChange }: { holding?: Holdi
   );
 }
 
+/** Funds and exchange-listed holdings can be priced from official data (AMFI NAV, NSE/BSE close). */
+export function canFetchPrice(h: Holding) {
+  return h.valuationMethod === "MARKET_PRICE" && (h.assetClass === "MUTUAL_FUND" || LISTED.includes(h.assetClass));
+}
+
+type LatestPrice = { holding: Holding; previousPrice: number | null; price: number; priceDate: string; source: string; message: string };
+
 export function UpdateValueDialog({ holding, open, onOpenChange }: { holding: Holding; open: boolean; onOpenChange: (o: boolean) => void }) {
   const invalidate = useInvalidateWealth();
   const manual = holding.valuationMethod === "MANUAL";
+  const fetchable = canFetchPrice(holding);
+  const fund = holding.assetClass === "MUTUAL_FUND";
+  const [typing, setTyping] = useState(!fetchable);
   const [v, setV] = useState(String(manual ? holding.manualValue ?? "" : holding.currentPrice ?? ""));
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<LatestPrice | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  async function fetchLatest() {
+    setBusy(true);
+    setProblem(null);
+    try {
+      const r = await api.post<LatestPrice>(`/networth/holdings/${holding.id}/latest-price`);
+      setResult(r);
+      invalidate();
+    } catch (e) {
+      setProblem(err(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveTyped() {
+    try {
+      await api.post(`/networth/holdings/${holding.id}/price`, { price: v });
+      invalidate();
+      toast.success("Updated");
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(err(e));
+    }
+  }
+
+  const priceWord = fund ? "NAV" : "price";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={`Update ${holding.name}`} description={manual ? "Enter today's value." : `Enter today's price per ${holding.assetClass === "GOLD" ? "gram" : "unit"}.`}>
-        <Input inputMode="decimal" className="num text-lg" value={v} onChange={(e) => setV(num(e.target.value))} aria-label={manual ? "Value" : "Price"} autoFocus />
-        {!manual && holding.units != null && <p className="mt-2 text-sm text-ink-2">Worth {inr(Number(v || 0) * holding.units)}</p>}
-        <Button className="mt-4 w-full" disabled={!v} onClick={async () => {
-          try {
-            await api.post(`/networth/holdings/${holding.id}/price`, { price: v });
-            invalidate();
-            toast.success("Updated");
-            onOpenChange(false);
-          } catch (e) {
-            toast.error(err(e));
-          }
-        }}>Save</Button>
+      <DialogContent title={holding.name}
+        description={fetchable ? `Value now: ${inr(holding.value)}${holding.priceAsOf ? `, priced ${formatDate(holding.priceAsOf, { day: "numeric", month: "short" })}` : ""}` : manual ? "Enter today's value." : `Enter today's price per ${holding.assetClass === "GOLD" ? "gram" : "unit"}.`}>
+        {fetchable && (
+          <div className="space-y-3">
+            {result ? (
+              <div className="rounded-2xl bg-surface-2 p-4">
+                <p className="text-sm text-ink-2">{result.source} ₹{result.price} for {formatDate(result.priceDate, { day: "numeric", month: "short", year: "numeric" })}</p>
+                <p className="num mt-1 text-2xl font-semibold">{inr(result.holding.value)}</p>
+                {result.previousPrice != null && Number(result.previousPrice) !== Number(result.price) && (
+                  <p className="mt-1 text-xs text-ink-3">{priceWord} was ₹{result.previousPrice}; now ₹{result.price}</p>
+                )}
+                {result.previousPrice != null && Number(result.previousPrice) === Number(result.price) && (
+                  <p className="mt-1 text-xs text-ink-3">Already up to date. {fund ? "Funds publish one NAV a day, in the evening." : "Prices update after each trading day closes."}</p>
+                )}
+                <Button className="mt-4 w-full" onClick={() => onOpenChange(false)}>Done</Button>
+              </div>
+            ) : (
+              <>
+                <Button className="w-full" disabled={busy} onClick={fetchLatest}>
+                  <RefreshCw className={busy ? "animate-spin" : undefined} /> {busy ? "Checking…" : `Get latest ${priceWord}`}
+                </Button>
+                <p className="text-xs text-ink-3">
+                  {fund ? "From AMFI. Funds publish one NAV per working day, in the evening." : "From NSE/BSE. The closing price after each trading day."} This also happens automatically every evening.
+                </p>
+              </>
+            )}
+            {problem && <p role="alert" className="rounded-2xl bg-out/10 p-3 text-sm text-out">{problem}</p>}
+            {!typing && !result && (
+              <button type="button" className="text-sm font-medium text-peacock hover:underline" onClick={() => setTyping(true)}>Enter a price yourself</button>
+            )}
+          </div>
+        )}
+        {typing && !result && (
+          <div className={fetchable ? "mt-4 border-t border-line pt-4" : undefined}>
+            <Input inputMode="decimal" className="num text-lg" value={v} onChange={(e) => setV(num(e.target.value))} aria-label={manual ? "Value" : "Price per unit"} autoFocus={!fetchable} />
+            {!manual && holding.units != null && <p className="mt-2 text-sm text-ink-2">Worth {inr(Number(v || 0) * holding.units)}</p>}
+            {fetchable && <p className="mt-2 text-xs text-ink-3">A price you type is kept until the next official {priceWord} comes out.</p>}
+            <Button className="mt-4 w-full" variant={fetchable ? "outline" : undefined} disabled={!v} onClick={saveTyped}>Save this price</Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

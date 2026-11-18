@@ -138,4 +138,42 @@ class StockPricesAndNoteLearningIT extends IntegrationTestBase {
         MockMultipartFile junk = new MockMultipartFile("file", "broken.xlsx", "application/octet-stream", "nope".getBytes());
         call(s, multipart("/api/networth/holdings/import").file(junk), 422);
     }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    com.expensetracker.networth.PriceService priceService;
+
+    @Test
+    void getLatestPriceReplacesATypedPriceWithTheOfficialOne() throws Exception {
+        Session s = register();
+        priceService.loadNavFile("""
+                Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Plan;Option;Net Asset Value;Date
+
+                Open Ended Schemes(Equity Scheme - Flexi Cap Fund)
+
+                PPFAS Mutual Fund
+
+                122639;INF879O01027;-;Parag Parikh Flexi Cap Fund;Direct Plan;Growth Option;94.2890;17-Nov-2026
+                """);
+        JsonNode fund = postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "PPFAS", "isin", "INF879O01027", "units", "100"), 201);
+        String id = fund.get("id").asText();
+        // typing a price by hand...
+        postJson(s, "/api/networth/holdings/" + id + "/price", Map.of("price", "80"), 200);
+        // ...then "Get latest price" brings back the official NAV
+        JsonNode r = postJson(s, "/api/networth/holdings/" + id + "/latest-price", Map.of(), 200);
+        assertEquals(0, r.get("price").decimalValue().compareTo(new java.math.BigDecimal("94.289")));
+        assertEquals(0, r.get("previousPrice").decimalValue().compareTo(new java.math.BigDecimal("80")));
+        assertEquals("2026-11-17", r.get("priceDate").asText());
+        assertEquals("AMFI", r.get("holding").get("priceSource").asText());
+        assertEquals(0, r.get("holding").get("value").decimalValue().compareTo(new java.math.BigDecimal("9428.90")));
+        assertEquals("122639", r.get("holding").get("schemeCode").asText(), "linked to its AMFI scheme by ISIN");
+
+        // a fund with no ISIN or scheme can't be looked up, and says how to fix it
+        JsonNode loose = postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "Some fund", "units", "10", "currentPrice", "50"), 201);
+        JsonNode err = postJson(s, "/api/networth/holdings/" + loose.get("id").asText() + "/latest-price", Map.of(), 422);
+        assertTrue(err.get("error").get("message").asText().contains("isn't linked to an AMFI scheme"));
+
+        // things valued by hand have no market price to fetch
+        JsonNode ppf = postJson(s, "/api/networth/holdings", Map.of("assetClass", "PPF", "name", "PPF", "manualValue", "150000"), 201);
+        postJson(s, "/api/networth/holdings/" + ppf.get("id").asText() + "/latest-price", Map.of(), 422);
+    }
 }
