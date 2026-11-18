@@ -17,7 +17,7 @@ public final class IntentParser {
 
     public enum Type {
         SPEND_TOTAL, INCOME_TOTAL, TOP_CATEGORIES, TOP_MERCHANTS, COMPARE_MONTHS, SAVINGS_RATE, NET_WORTH, BUDGETS,
-        SUBSCRIPTIONS, UPCOMING_BILLS, CARD_DUES, GOALS, LARGEST, NEEDS_REVIEW, INVESTED, CAN_AFFORD, HELP
+        SUBSCRIPTIONS, UPCOMING_BILLS, CARD_DUES, LARGEST, NEEDS_REVIEW, INVESTED, CAN_AFFORD, HELP
     }
 
     public record Range(LocalDate from, LocalDate toExclusive, String label) {
@@ -53,7 +53,6 @@ public final class IntentParser {
         if (has(q, "subscription", "subscriptions", "subscribed")) return Type.SUBSCRIPTIONS;
         if (has(q, "credit card", "card due", "card bill", "statement", "utilisation", "utilization")) return Type.CARD_DUES;
         if (has(q, "upcoming", "due soon", "bills", "bill due", "recurring")) return Type.UPCOMING_BILLS;
-        if (has(q, "goal", "goals")) return Type.GOALS;
         if (has(q, "review", "uncategorised", "uncategorized", "pending")) return Type.NEEDS_REVIEW;
         if (has(q, "saving rate", "savings rate", "save", "saved", "saving")) return Type.SAVINGS_RATE;
         if (has(q, "compare", "compared", "vs", "versus", "more than last", "less than last")) return Type.COMPARE_MONTHS;

@@ -24,7 +24,7 @@ export function SecurityPanel({ demo }: { demo: boolean }) {
     try {
       await api.post("/auth/password", pw);
       setPw({ currentPassword: "", newPassword: "" });
-      toast.success("Password changed");
+      toast.success("Password changed. Other devices have been signed out.");
     } catch (e) {
       toast.error(err(e));
     }

@@ -1,4 +1,6 @@
 app:
+  prices:
+    auto-refresh: false
   security:
     jwt-secret: dGVzdC1zZWNyZXQtdGhhdC1pcy1kZWZpbml0ZWx5LWxvbmctZW5vdWdoLTEyMzQ1Njc4OTA=
     cookie-secure: false

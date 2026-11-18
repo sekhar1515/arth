@@ -23,6 +23,8 @@ public class User {
     private boolean demo;
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+    @Column(name = "sessions_valid_after")
+    private Instant sessionsValidAfter;
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
     @Column(name = "mfa_enabled", nullable = false)
@@ -50,6 +52,8 @@ public class User {
     public String getDisplayName() { return displayName; }
     public boolean isDemo() { return demo; }
     public Instant getCreatedAt() { return createdAt; }
+    public Instant getSessionsValidAfter() { return sessionsValidAfter; }
+    public void setSessionsValidAfter(Instant v) { this.sessionsValidAfter = v; }
     public Instant getLastLoginAt() { return lastLoginAt; }
     public void setLastLoginAt(Instant lastLoginAt) { this.lastLoginAt = lastLoginAt; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }

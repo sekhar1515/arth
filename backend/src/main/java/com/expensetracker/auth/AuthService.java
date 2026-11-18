@@ -30,7 +30,10 @@ public class AuthService {
     private static final int MAX_LOGIN_ATTEMPTS = 8;
     private static final Duration LOGIN_WINDOW = Duration.ofMinutes(15);
     /** Pre-computed hash used to keep timing similar when the e-mail does not exist. */
-    private static final String DUMMY_HASH = "$2a$12$J2ERb9vtrWApnOX7O6MYbOWLPY8Gfx89NgvAvfuA1KwVttVvxEJV6";
+    public static final int BCRYPT_COST = 10;
+    /** Compared against when the e-mail is unknown, so a wrong e-mail takes as long as a wrong password. */
+    private final String dummyHash;
+    private final SessionGuard sessions;
 
     private final UserRepository users;
     private final UserPreferencesRepository preferences;
@@ -43,7 +46,7 @@ public class AuthService {
 
     public AuthService(UserRepository users, UserPreferencesRepository preferences, CategoryService categories,
                        AccountService accounts, PasswordEncoder encoder, LoginRateLimiter limiter, AuditService audit,
-                       com.expensetracker.auth.mfa.MfaService mfa) {
+                       com.expensetracker.auth.mfa.MfaService mfa, SessionGuard sessions) {
         this.users = users;
         this.preferences = preferences;
         this.categories = categories;
@@ -52,6 +55,8 @@ public class AuthService {
         this.limiter = limiter;
         this.audit = audit;
         this.mfa = mfa;
+        this.sessions = sessions;
+        this.dummyHash = encoder.encode(UUID.randomUUID().toString());
     }
 
     @Transactional
@@ -82,7 +87,7 @@ public class AuthService {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "Too many sign-in attempts. Try again in 15 minutes.");
         }
         User user = users.findByEmailIgnoreCase(normalised).orElse(null);
-        boolean ok = encoder.matches(password == null ? "" : password, user != null ? user.getPasswordHash() : DUMMY_HASH);
+        boolean ok = encoder.matches(password == null ? "" : password, user != null ? user.getPasswordHash() : dummyHash);
         if (user == null || !ok) {
             audit.record(user != null ? user.getId() : null, "LOGIN_FAILED", "user", null, normalised);
             throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "E-mail or password is incorrect");
@@ -97,19 +102,33 @@ public class AuthService {
             }
         }
         limiter.reset(key);
+        if (bcryptCost(user.getPasswordHash()) != BCRYPT_COST) user.setPasswordHash(encoder.encode(password));
         user.setLastLoginAt(Instant.now());
         audit.record(user.getId(), "LOGIN", "user", user.getId(), null);
         return user;
     }
 
+    /** Work factor of a bcrypt hash ("$2a$12$..." → 12), or -1 if it isn't one. */
+    static int bcryptCost(String hash) {
+        if (hash == null || hash.length() < 7 || hash.charAt(0) != '$' || hash.charAt(3) != '$') return -1;
+        try {
+            return Integer.parseInt(hash.substring(4, 6));
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    /** Changes the password and signs out every other session; returns the user so the caller can issue a fresh one. */
     @Transactional
-    public void changePassword(UUID userId, String current, String next) {
+    public User changePassword(UUID userId, String current, String next) {
         User user = users.findById(userId).orElseThrow(() -> ApiException.notFound("User"));
         if (user.isDemo()) throw ApiException.badRequest("The demo account's password can't be changed");
         if (current == null || !encoder.matches(current, user.getPasswordHash())) throw ApiException.badRequest("Current password is incorrect");
         validatePassword(next);
         user.setPasswordHash(encoder.encode(next));
+        sessions.revokeAll(user);
         audit.record(userId, "PASSWORD_CHANGED", "user", userId, null);
+        return user;
     }
 
     @Transactional(readOnly = true)

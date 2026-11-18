@@ -35,18 +35,21 @@ public class NetWorthController {
     private final LiabilityService liabilities;
     private final PriceService prices;
     private final StockPriceService stockPrices;
+    private final PriceRefresher refresher;
 
     public NetWorthController(NetWorthService netWorth, HoldingService holdings, LiabilityService liabilities, PriceService prices,
-                              StockPriceService stockPrices) {
+                              StockPriceService stockPrices, PriceRefresher refresher) {
         this.netWorth = netWorth;
         this.holdings = holdings;
         this.liabilities = liabilities;
         this.prices = prices;
         this.stockPrices = stockPrices;
+        this.refresher = refresher;
     }
 
     @GetMapping
     public NetWorthService.Summary summary() {
+        refresher.refreshIfStale("net worth opened");
         return netWorth.summary(CurrentUser.id());
     }
 

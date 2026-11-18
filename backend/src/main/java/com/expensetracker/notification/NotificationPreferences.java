@@ -30,8 +30,6 @@ public class NotificationPreferences {
     private boolean cardReminders = true;
     @Column(name = "unusual_spending", nullable = false)
     private boolean unusualSpending = true;
-    @Column(name = "goal_updates", nullable = false)
-    private boolean goalUpdates = true;
     @Column(name = "review_reminders", nullable = false)
     private boolean reviewReminders = true;
     @Column(name = "large_txn_threshold", nullable = false, precision = 19, scale = 2)
@@ -66,8 +64,6 @@ public class NotificationPreferences {
     public void setCardReminders(boolean v) { cardReminders = v; }
     public boolean isUnusualSpending() { return unusualSpending; }
     public void setUnusualSpending(boolean v) { unusualSpending = v; }
-    public boolean isGoalUpdates() { return goalUpdates; }
-    public void setGoalUpdates(boolean v) { goalUpdates = v; }
     public boolean isReviewReminders() { return reviewReminders; }
     public void setReviewReminders(boolean v) { reviewReminders = v; }
     public BigDecimal getLargeTxnThreshold() { return largeTxnThreshold; }

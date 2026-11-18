@@ -1,7 +1,6 @@
 package com.expensetracker.budget;
 
 import com.expensetracker.creditcard.CardCycle;
-import com.expensetracker.goal.GoalMath;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -82,20 +81,4 @@ class PlanningLogicTest {
         assertEquals(d("37.5"), CardCycle.utilisationPct(d("75000"), d("200000")));
     }
 
-    @Test
-    void goalRequiredMonthlyWithAndWithoutReturns() {
-        // ₹1,20,000 in 12 months from zero, no return → ₹10,000/month
-        assertEquals(d("10000.00"), GoalMath.requiredMonthly(d("120000"), BigDecimal.ZERO, BigDecimal.ZERO, 12));
-        // with 12% a year (1%/month): 120000 / ((1.01^12 - 1)/0.01) = 9461.855 → 9461.86 (rounded up)
-        assertEquals(d("9461.86"), GoalMath.requiredMonthly(d("120000"), BigDecimal.ZERO, d("0.01"), 12));
-        var p = GoalMath.project(d("100000"), d("40000"), LocalDate.of(2027, 11, 1), BigDecimal.ZERO, d("5000"), LocalDate.of(2026, 11, 17));
-        assertEquals(d("40.0"), p.progressPct());
-        assertEquals(Integer.valueOf(12), p.monthsLeft());
-        assertEquals(d("5000.00"), p.requiredMonthly());
-        assertEquals(LocalDate.of(2027, 11, 17), p.projectedDate());
-        assertEquals("BEHIND", p.state()); // 17 Nov is after 1 Nov
-        var none = GoalMath.project(d("100000"), d("0"), null, BigDecimal.ZERO, BigDecimal.ZERO, LocalDate.of(2026, 11, 17));
-        assertEquals("NO_CONTRIBUTIONS", none.state());
-        assertEquals("ACHIEVED", GoalMath.project(d("1000"), d("1200"), null, BigDecimal.ZERO, null, LocalDate.of(2026, 11, 17)).state());
-    }
 }

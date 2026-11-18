@@ -77,8 +77,8 @@ public class PriceService {
         this.scheduleEnabled = scheduleEnabled;
     }
 
-    /** AMFI publishes the day's NAVs late evening; refresh after that. */
-    @Scheduled(cron = "0 15 23 * * *", zone = "Asia/Kolkata")
+    /** Funds report the day's NAV to AMFI through the evening (and a few the next morning): pick them up hourly. */
+    @Scheduled(cron = "0 15 7,9,19-23 * * *", zone = "Asia/Kolkata")
     public void scheduledRefresh() {
         if (scheduleEnabled) refreshMutualFunds();
     }

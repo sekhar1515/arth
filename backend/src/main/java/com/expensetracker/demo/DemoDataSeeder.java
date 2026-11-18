@@ -73,7 +73,6 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final com.expensetracker.budget.BudgetService budgets;
     private final com.expensetracker.recurring.RecurringService recurring;
     private final com.expensetracker.creditcard.CreditCardService cards;
-    private final com.expensetracker.goal.GoalService goals;
     private final jakarta.persistence.EntityManager em;
     private final Clock clock;
     private final String email;
@@ -83,7 +82,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                           IngestionService ingestion, CategorisationService categorisation, TransactionRepository transactions,
                           HoldingService holdings, LiabilityService liabilities, NetWorthService netWorth,
                           com.expensetracker.budget.BudgetService budgets, com.expensetracker.recurring.RecurringService recurring,
-                          com.expensetracker.creditcard.CreditCardService cards, com.expensetracker.goal.GoalService goals,
+                          com.expensetracker.creditcard.CreditCardService cards,
                           jakarta.persistence.EntityManager em, Clock clock, @Value("${app.demo.email:demo@arth.local}") String email,
                           @Value("${app.demo.password}") String password) {
         this.auth = auth;
@@ -99,7 +98,6 @@ public class DemoDataSeeder implements ApplicationRunner {
         this.budgets = budgets;
         this.recurring = recurring;
         this.cards = cards;
-        this.goals = goals;
         this.em = em;
         this.clock = clock;
         this.email = email;
@@ -188,15 +186,6 @@ public class DemoDataSeeder implements ApplicationRunner {
                     || item.kind() == com.expensetracker.recurring.RecurringDetector.Kind.INCOME) {
                 recurring.setStatus(u, item.id(), com.expensetracker.recurring.RecurringPayment.Status.ACTIVE, null);
             }
-        }
-        var ef = goals.create(u, new com.expensetracker.goal.GoalService.GoalRequest("Emergency fund", com.expensetracker.goal.Goal.Kind.EMERGENCY_FUND,
-                new BigDecimal("300000"), today.plusMonths(18), new BigDecimal("40000"), new BigDecimal("6.5"), 1, null, "Synthetic demo goal", null));
-        em.flush();
-        if (liquidFund != null) goals.link(u, ef.id(), new com.expensetracker.goal.GoalService.LinkRequest(liquidFund, new BigDecimal("100")));
-        var trip = goals.create(u, new com.expensetracker.goal.GoalService.GoalRequest("Goa trip", com.expensetracker.goal.Goal.Kind.TRAVEL,
-                new BigDecimal("60000"), today.plusMonths(5), BigDecimal.ZERO, BigDecimal.ZERO, 2, null, "Synthetic demo goal", null));
-        for (int i = 3; i >= 1; i--) {
-            goals.contribute(u, trip.id(), new com.expensetracker.goal.GoalService.ContributionRequest(new BigDecimal("8000"), today.minusMonths(i).withDayOfMonth(6), "Monthly top-up", null));
         }
         // reminders and budget alerts are created by the hourly job (AlertScheduler), outside this seeding transaction
     }

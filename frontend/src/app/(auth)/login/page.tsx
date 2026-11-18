@@ -55,6 +55,11 @@ export default function LoginPage() {
         <Field label="Password" htmlFor="password">
           <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </Field>
+        <div className="-mt-2 text-right text-sm">
+          <Link href={email ? `/forgot-password?email=${encodeURIComponent(email)}` : "/forgot-password"} className="font-medium text-peacock hover:underline">
+            Forgot password?
+          </Link>
+        </div>
         {needCode && (
           <Field label="Code from your authenticator app" htmlFor="code">
             <Input id="code" autoComplete="one-time-code" inputMode="text" autoFocus required value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456 or a recovery code" />

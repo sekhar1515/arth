@@ -41,7 +41,7 @@ export function DataPanel({ demo }: { demo: boolean }) {
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="font-semibold">Download everything</p>
-            <p className="text-[13px] text-ink-2">Accounts, transactions, categories, rules, budgets, goals, investments and settings as one JSON file. Your password is never included.</p>
+            <p className="text-[13px] text-ink-2">Accounts, transactions, categories, rules, budgets, investments and settings as one JSON file. Your password is never included.</p>
           </div>
           <Button asChild variant="outline" size="sm"><a href="/api/privacy/export" download><Download /> JSON</a></Button>
           <Button asChild variant="outline" size="sm"><a href="/api/transactions/export.csv"><Download /> Transactions CSV</a></Button>
@@ -86,7 +86,7 @@ function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
   }
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent title="Delete your Arth account?" description="Everything goes: transactions, accounts, investments, goals and settings. This can't be undone.">
+      <DialogContent title="Delete your Arth account?" description="Everything goes: transactions, accounts, investments and settings. This can't be undone.">
         <div className="space-y-4">
           <Field label="Password" htmlFor="del-pw"><Input id="del-pw" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
           <Field label="Type DELETE to confirm" htmlFor="del-confirm"><Input id="del-confirm" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} /></Field>

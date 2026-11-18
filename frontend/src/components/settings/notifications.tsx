@@ -16,7 +16,6 @@ const TOPICS: { key: keyof NotificationPrefs; title: string; body: string }[] = 
   { key: "subscriptionAlerts", title: "Subscription changes", body: "Price changes, charges after you cancelled, and ones you haven't reviewed in a while" },
   { key: "cardReminders", title: "Credit card due dates", body: "Before the due date, when overdue, and when you use more than 30% of the limit" },
   { key: "unusualSpending", title: "Large payments", body: "Any single payment at or above the amount below" },
-  { key: "goalUpdates", title: "Goal milestones", body: "At 25, 50, 75 and 100%" },
   { key: "reviewReminders", title: "Review reminder", body: "Once a week when five or more transactions need a category" },
 ];
 

@@ -26,7 +26,7 @@ public class SecurityConfig {
      * never attach it to cross-site requests. The ingest endpoint uses a separate header token, not the cookie.
      */
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService, ObjectMapper mapper) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService, ObjectMapper mapper, SessionGuard sessionGuard) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(AbstractHttpConfigurer::disable)
@@ -39,7 +39,8 @@ public class SecurityConfig {
                         .frameOptions(f -> f.deny())
                         .referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.SAME_ORIGIN)))
                 .authorizeHttpRequests(a -> a
-                        .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login", "/api/auth/logout").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login", "/api/auth/logout",
+                                "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/demo-info", "/api/auth/registration-info").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/ingest/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
@@ -51,12 +52,14 @@ public class SecurityConfig {
                     mapper.writeValue(res.getOutputStream(), new ApiErrorResponse(
                             new ApiErrorResponse.Error("UNAUTHENTICATED", "Please sign in", List.of()), Instant.now(), req.getRequestURI()));
                 }))
-                .addFilterBefore(new JwtCookieAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new JwtCookieAuthFilter(jwtService, sessionGuard), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(12);
+        // cost 10: OWASP's minimum work factor, ~4x faster than 12 so sign-in stays quick on small servers.
+        // Hashes made at another cost are re-made at this one on the next successful sign-in.
+        return new BCryptPasswordEncoder(AuthService.BCRYPT_COST);
     }
 }

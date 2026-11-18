@@ -10,7 +10,6 @@ import com.expensetracker.category.CategoryKind;
 import com.expensetracker.category.CategoryService;
 import com.expensetracker.common.TimeConfig;
 import com.expensetracker.creditcard.CreditCardService;
-import com.expensetracker.goal.GoalService;
 import com.expensetracker.merchant.Merchant;
 import com.expensetracker.merchant.MerchantService;
 import com.expensetracker.networth.NetWorthService;
@@ -61,7 +60,7 @@ public class AssistantService {
             "How much did I spend this month?", "How much did I spend on food last month?", "What did I spend at Swiggy in October?",
             "Where did my money go this year?", "What's my savings rate?", "Compare this month with last month", "What's my net worth?",
             "Am I over budget?", "What subscriptions do I have?", "What bills are due soon?", "When is my credit card bill due?",
-            "How are my goals doing?", "What were my biggest expenses last month?", "How much did I invest this year?", "Can I afford a ₹40,000 phone?");
+            "What were my biggest expenses last month?", "How much did I invest this year?", "Can I afford a ₹40,000 phone?");
 
     private final DashboardService dashboard;
     private final SpendQueries spend;
@@ -72,13 +71,12 @@ public class AssistantService {
     private final BudgetService budgets;
     private final RecurringService recurring;
     private final CreditCardService cards;
-    private final GoalService goals;
     private final NamedParameterJdbcTemplate jdbc;
     private final Clock clock;
 
     public AssistantService(DashboardService dashboard, SpendQueries spend, CategoryService categories, MerchantService merchants,
                             AccountService accounts, NetWorthService netWorth, BudgetService budgets, RecurringService recurring,
-                            CreditCardService cards, GoalService goals, NamedParameterJdbcTemplate jdbc, Clock clock) {
+                            CreditCardService cards, NamedParameterJdbcTemplate jdbc, Clock clock) {
         this.dashboard = dashboard;
         this.spend = spend;
         this.categories = categories;
@@ -88,7 +86,6 @@ public class AssistantService {
         this.budgets = budgets;
         this.recurring = recurring;
         this.cards = cards;
-        this.goals = goals;
         this.jdbc = jdbc;
         this.clock = clock;
     }
@@ -118,7 +115,6 @@ public class AssistantService {
             case SUBSCRIPTIONS -> subscriptions(userId, question);
             case UPCOMING_BILLS -> upcoming(userId, question);
             case CARD_DUES -> cardDues(userId, question);
-            case GOALS -> goalStatus(userId, question);
             case LARGEST -> largest(userId, question, r);
             case NEEDS_REVIEW -> review(userId, question);
             case CAN_AFFORD -> afford(userId, question, intent.amount(), today);
@@ -321,19 +317,6 @@ public class AssistantService {
         return new Answer(q, IntentParser.Type.CARD_DUES, "latest statements", "Across your cards you owe " + InrFormat.format(o.totalDue()) + " on the latest statements.",
                 facts, List.of("Statement amounts are worked out from the card transactions in Arth, so check them against your bank's statement."),
                 List.of(new Link("Credit cards", "/credit-cards")), List.of(), note());
-    }
-
-    private Answer goalStatus(UUID u, String q) {
-        var list = goals.list(u).stream().filter(g -> g.status() == com.expensetracker.goal.Goal.Status.ACTIVE).toList();
-        if (list.isEmpty()) return new Answer(q, IntentParser.Type.GOALS, "now", "You don't have any active goals.", List.of(), List.of(),
-                List.of(new Link("Set a goal", "/goals")), List.of(), note());
-        List<Fact> facts = list.stream().map(g -> new Fact(g.name(), g.projection().saved(), g.projection().progressPct().stripTrailingZeros().toPlainString()
-                + "% of " + InrFormat.format(g.targetAmount()) + (g.projection().requiredMonthly() != null ? ", needs " + InrFormat.format(g.projection().requiredMonthly()) + "/month" : "")
-                + ", " + g.projection().state().toLowerCase().replace('_', ' '), FactKind.CONFIRMED)).toList();
-        long behind = list.stream().filter(g -> "BEHIND".equals(g.projection().state())).count();
-        return new Answer(q, IntentParser.Type.GOALS, "now", list.size() + " active goals" + (behind > 0 ? ", " + behind + " behind schedule." : ", none behind schedule."),
-                facts, List.of("Required monthly amount assumes contributions at the end of each month and the expected return you set (an estimate)."),
-                List.of(new Link("Goals", "/goals")), List.of(), note());
     }
 
     private Answer largest(UUID u, String q, IntentParser.Range r) {

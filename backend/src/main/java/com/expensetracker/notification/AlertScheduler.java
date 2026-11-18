@@ -3,7 +3,6 @@ package com.expensetracker.notification;
 import com.expensetracker.analytics.InrFormat;
 import com.expensetracker.budget.BudgetService;
 import com.expensetracker.creditcard.CreditCardService;
-import com.expensetracker.goal.GoalService;
 import com.expensetracker.recurring.RecurringService;
 import com.expensetracker.user.User;
 import com.expensetracker.user.UserRepository;
@@ -34,18 +33,16 @@ public class AlertScheduler {
     private final BudgetService budgets;
     private final RecurringService recurring;
     private final CreditCardService cards;
-    private final GoalService goals;
     private final NotificationService notifications;
     private final NamedParameterJdbcTemplate jdbc;
     private final Clock clock;
 
-    public AlertScheduler(UserRepository users, BudgetService budgets, RecurringService recurring, CreditCardService cards, GoalService goals,
+    public AlertScheduler(UserRepository users, BudgetService budgets, RecurringService recurring, CreditCardService cards,
                           NotificationService notifications, NamedParameterJdbcTemplate jdbc, Clock clock) {
         this.users = users;
         this.budgets = budgets;
         this.recurring = recurring;
         this.cards = cards;
-        this.goals = goals;
         this.notifications = notifications;
         this.jdbc = jdbc;
         this.clock = clock;
@@ -67,7 +64,6 @@ public class AlertScheduler {
         n += safe("budgets", userId, () -> budgets.checkAlerts(userId));
         n += safe("recurring", userId, () -> recurring.remind(userId));
         n += safe("cards", userId, () -> cards.remind(userId));
-        n += safe("goals", userId, () -> goals.milestones(userId));
         n += safe("large transactions", userId, () -> largeTransactions(userId));
         n += safe("review", userId, () -> reviewReminder(userId));
         return n;

@@ -29,6 +29,27 @@ public class Mailer {
         return host != null && !host.isBlank() && sender.getIfAvailable() != null && from != null && !from.isBlank();
     }
 
+    /** Account e-mails (password reset): no notification footer, the link is used as given. */
+    public boolean sendAccountEmail(String to, String subject, String body) {
+        if (!available()) return false;
+        try {
+            SimpleMailMessage m = new SimpleMailMessage();
+            m.setFrom(from);
+            m.setTo(to);
+            m.setSubject("Arth: " + subject);
+            m.setText(body);
+            sender.getIfAvailable().send(m);
+            return true;
+        } catch (RuntimeException e) {
+            log.warn("account e-mail failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    public String appUrl() {
+        return appUrl;
+    }
+
     public boolean send(String to, String subject, String body, String link) {
         if (!available()) return false;
         JavaMailSender s = sender.getIfAvailable();

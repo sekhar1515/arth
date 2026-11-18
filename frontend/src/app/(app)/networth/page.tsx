@@ -1,6 +1,6 @@
 "use client";
 
-import { FileUp, Landmark, MoreHorizontal, Plus, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
+import { FileUp, Landmark, MoreHorizontal, Pencil, Plus, RefreshCw, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/layout/app-shell";
 import { BUCKET_LABEL, HoldingDialog, ImportHoldingsDialog, LiabilityDialog, SourceBadge, UpdateValueDialog } from "@/components/finance/networth-dialogs";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm";
+import { Menu, MenuItem } from "@/components/ui/menu";
 import { EmptyState, ErrorState, Panel, Skeleton } from "@/components/ui/states";
 import { useHoldings, useInvalidateWealth, useLiabilities, useNetWorth, useNetWorthHistory } from "@/hooks/queries";
 import { api, ApiError } from "@/lib/api";
@@ -84,7 +85,7 @@ export default function NetWorthPage() {
     const ok = await confirm({
       title: `Delete ${item.name}?`,
       body: item.kind === "HOLDING"
-        ? "It's removed from your net worth and from any goal it was funding. Past net worth snapshots keep their numbers. This can't be undone."
+        ? "It's removed from your net worth. Past net worth snapshots keep their numbers. This can't be undone."
         : "The loan is removed from your net worth. Past net worth snapshots keep their numbers. This can't be undone.",
       confirmLabel: "Delete", danger: true,
     });
@@ -239,7 +240,6 @@ export default function NetWorthPage() {
 }
 
 function GroupCard({ g, negative, onAction }: { g: NetWorthGroup; negative?: boolean; onAction: (item: NetWorthItem, action: "update" | "edit" | "remove") => void }) {
-  const [menu, setMenu] = useState<string | null>(null);
   return (
     <section className="overflow-hidden rounded-3xl border border-line bg-surface">
       <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-line px-5 py-3.5">
@@ -264,18 +264,13 @@ function GroupCard({ g, negative, onAction }: { g: NetWorthGroup; negative?: boo
               {i.gain !== null && <Gain value={i.gain} pct={i.gainPct} />}
             </div>
             {i.kind !== "ACCOUNT" && (
-              <div className="relative">
-                <Button variant="ghost" size="icon" aria-label={`Actions for ${i.name}`} onClick={() => setMenu(menu === i.id ? null : i.id)}><MoreHorizontal /></Button>
-                {menu === i.id && (
-                  <div className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-2xl border border-line bg-surface py-1 text-sm shadow-lift" onMouseLeave={() => setMenu(null)}>
-                    {i.kind === "HOLDING" && !i.source.startsWith("Estimated") && (
-                      <button className="block w-full px-3 py-2 text-left hover:bg-surface-2" onClick={() => { setMenu(null); onAction(i, "update"); }}>Update value</button>
-                    )}
-                    <button className="block w-full px-3 py-2 text-left hover:bg-surface-2" onClick={() => { setMenu(null); onAction(i, "edit"); }}>Edit</button>
-                    <button className="block w-full px-3 py-2 text-left text-out hover:bg-surface-2" onClick={() => { setMenu(null); onAction(i, "remove"); }}>Delete</button>
-                  </div>
+              <Menu trigger={<Button variant="ghost" size="icon" aria-label={`Actions for ${i.name}`}><MoreHorizontal /></Button>}>
+                {i.kind === "HOLDING" && !i.source.startsWith("Estimated") && (
+                  <MenuItem onSelect={() => onAction(i, "update")}><RefreshCw className="size-4 text-ink-3" /> Update value</MenuItem>
                 )}
-              </div>
+                <MenuItem onSelect={() => onAction(i, "edit")}><Pencil className="size-4 text-ink-3" /> Edit</MenuItem>
+                <MenuItem danger onSelect={() => onAction(i, "remove")}><Trash2 className="size-4" /> Delete</MenuItem>
+              </Menu>
             )}
           </li>
         ))}

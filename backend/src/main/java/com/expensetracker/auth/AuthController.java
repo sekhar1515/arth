@@ -41,8 +41,16 @@ public class AuthController {
     public record DisableMfaRequest(String password, String code) {
     }
 
+    public record ForgotPasswordRequest(@NotBlank @Size(max = 254) String email) {
+    }
+
+    public record ResetPasswordRequest(@NotBlank @Size(max = 200) String token, @NotBlank @Size(max = 72) String newPassword) {
+    }
+
     private final AuthService authService;
     private final RegistrationPolicy registration;
+    private final PasswordResetService passwordReset;
+    private final com.expensetracker.networth.PriceRefresher priceRefresher;
     private final com.expensetracker.auth.mfa.MfaService mfa;
     private final JwtService jwtService;
     private final boolean secureCookie;
@@ -50,13 +58,15 @@ public class AuthController {
     private final String demoEmail;
     private final String demoPassword;
 
-    public AuthController(AuthService authService, RegistrationPolicy registration, com.expensetracker.auth.mfa.MfaService mfa, JwtService jwtService,
+    public AuthController(AuthService authService, RegistrationPolicy registration, PasswordResetService passwordReset, com.expensetracker.networth.PriceRefresher priceRefresher, com.expensetracker.auth.mfa.MfaService mfa, JwtService jwtService,
                           @Value("${app.security.cookie-secure:true}") boolean secureCookie,
                           @Value("${app.demo.enabled:false}") boolean demoEnabled,
                           @Value("${app.demo.email:demo@arth.local}") String demoEmail,
                           @Value("${app.demo.password:}") String demoPassword) {
         this.authService = authService;
         this.registration = registration;
+        this.passwordReset = passwordReset;
+        this.priceRefresher = priceRefresher;
         this.mfa = mfa;
         this.jwtService = jwtService;
         this.secureCookie = secureCookie;
@@ -75,6 +85,7 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthService.UserDto> login(@Valid @RequestBody LoginRequest req, HttpServletRequest http) {
         User user = authService.login(req.email(), req.password(), req.code(), http.getRemoteAddr());
+        priceRefresher.refreshIfStale("sign-in");
         return withSession(user);
     }
 
@@ -89,9 +100,9 @@ public class AuthController {
     }
 
     @PostMapping("/password")
-    public ResponseEntity<Void> changePassword(@RequestBody PasswordChange req) {
-        authService.changePassword(CurrentUser.id(), req.currentPassword(), req.newPassword());
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<AuthService.UserDto> changePassword(@RequestBody PasswordChange req) {
+        // other devices are signed out; this one gets a new session so you stay signed in here
+        return withSession(authService.changePassword(CurrentUser.id(), req.currentPassword(), req.newPassword()));
     }
 
     @GetMapping("/mfa")
@@ -115,10 +126,23 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    /** Lets the sign-up page show an invite-code field, or say sign-ups are closed. */
+    /** Lets the sign-up page show an invite-code field, or say sign-ups are closed; tells the forgot-password page whether e-mail works. */
     @GetMapping("/registration-info")
     public Map<String, Object> registrationInfo() {
-        return Map.of("mode", registration.mode().name());
+        return Map.of("mode", registration.mode().name(), "emailAvailable", passwordReset.emailAvailable());
+    }
+
+    /** Always 202, whether or not the account exists, so this can't be used to find out who has an account. */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest req, jakarta.servlet.http.HttpServletRequest http) {
+        passwordReset.request(req.email(), http.getRemoteAddr());
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest req) {
+        passwordReset.reset(req.token(), req.newPassword());
+        return ResponseEntity.noContent().build();
     }
 
     /** Lets the login page offer the demo account only when the server runs in demo mode. */

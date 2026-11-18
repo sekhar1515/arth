@@ -16,7 +16,7 @@ const err = (e: unknown) => (e instanceof ApiError ? [e.message, ...e.details].j
 const num = (v: string) => v.replace(/[^0-9.]/g, "");
 
 export const ASSET_CLASSES: { value: AssetClass; label: string; hint: string }[] = [
-  { value: "MUTUAL_FUND", label: "Mutual fund", hint: "Value updates nightly from AMFI NAVs" },
+  { value: "MUTUAL_FUND", label: "Mutual fund", hint: "Value updates every evening from AMFI" },
   { value: "STOCK", label: "Stock", hint: "Prices update daily from NSE/BSE" },
   { value: "ETF", label: "ETF", hint: "NIFTYBEES, GOLDBEES… priced daily" },
   { value: "FIXED_DEPOSIT", label: "Fixed deposit", hint: "Grows with interest automatically" },
@@ -207,7 +207,7 @@ export function HoldingDialog({ holding, open, onOpenChange }: { holding?: Holdi
                     <Input id="h-units" inputMode="decimal" className="num" value={f.units} onChange={(e) => set({ units: num(e.target.value) })} />
                   </Field>
                   <Field label={cls === "MUTUAL_FUND" ? "NAV (optional)" : cls === "GOLD" ? "Today's rate per gram" : LISTED.includes(cls) ? "Price (optional)" : "Current price"} htmlFor="h-price"
-                    hint={cls === "MUTUAL_FUND" ? (picked?.nav ? `AMFI NAV ₹${picked.nav} will be used and refreshed nightly` : "Leave empty to use AMFI's NAV")
+                    hint={cls === "MUTUAL_FUND" ? (picked?.nav ? `AMFI NAV ₹${picked.nav} will be used and updated every evening` : "Leave empty to use AMFI's NAV")
                       : LISTED.includes(cls) ? (pickedStock ? `${pickedStock.exchange} close ₹${pickedStock.close} will be used and refreshed every trading day` : "Leave empty to use the latest NSE/BSE close") : undefined}>
                     <Input id="h-price" inputMode="decimal" className="num" value={f.currentPrice} onChange={(e) => set({ currentPrice: num(e.target.value) })} />
                   </Field>

@@ -2,12 +2,11 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { AnalyticsReport, AppNotification, BudgetOverview, CardOverview, Goal, NotificationPrefs, RecurringSummary } from "@/types/api";
+import type { AnalyticsReport, AppNotification, BudgetOverview, CardOverview, NotificationPrefs, RecurringSummary } from "@/types/api";
 
 export const useBudgets = () => useQuery({ queryKey: ["budgets"], queryFn: () => api.get<BudgetOverview>("/budgets") });
 export const useRecurring = () => useQuery({ queryKey: ["recurring"], queryFn: () => api.get<RecurringSummary>("/recurring") });
 export const useCards = () => useQuery({ queryKey: ["cards"], queryFn: () => api.get<CardOverview>("/credit-cards") });
-export const useGoals = () => useQuery({ queryKey: ["goals"], queryFn: () => api.get<Goal[]>("/goals") });
 export const useAnalytics = (month: string | null) =>
   useQuery({ queryKey: ["analytics", month], queryFn: () => api.get<AnalyticsReport>("/analytics/report", { month: month ?? undefined }), placeholderData: (p) => p });
 export const useNotifications = (unread = false) =>
@@ -20,7 +19,7 @@ export const useNotificationPrefs = () => useQuery({ queryKey: ["notification-pr
 export function useInvalidatePlanning() {
   const qc = useQueryClient();
   return () => {
-    for (const k of ["budgets", "recurring", "cards", "goals", "analytics", "notifications", "notifications-unread", "summary", "accounts", "holdings", "networth"]) {
+    for (const k of ["budgets", "recurring", "cards", "analytics", "notifications", "notifications-unread", "summary", "accounts", "holdings", "networth"]) {
       qc.invalidateQueries({ queryKey: [k] });
     }
   };

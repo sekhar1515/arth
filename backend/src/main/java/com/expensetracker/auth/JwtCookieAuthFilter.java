@@ -19,9 +19,11 @@ public class JwtCookieAuthFilter extends OncePerRequestFilter {
     public static final String COOKIE_NAME = "arth_session";
 
     private final JwtService jwtService;
+    private final SessionGuard sessionGuard;
 
-    public JwtCookieAuthFilter(JwtService jwtService) {
+    public JwtCookieAuthFilter(JwtService jwtService, SessionGuard sessionGuard) {
         this.jwtService = jwtService;
+        this.sessionGuard = sessionGuard;
     }
 
     @Override
@@ -29,7 +31,7 @@ public class JwtCookieAuthFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String token = extract(request);
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            jwtService.verify(token).ifPresent(user -> {
+            jwtService.verify(token).filter(sessionGuard::accepts).ifPresent(user -> {
                 var auth = new UsernamePasswordAuthenticationToken(user, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
                 SecurityContextHolder.getContext().setAuthentication(auth);
             });

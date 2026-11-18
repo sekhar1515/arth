@@ -28,10 +28,11 @@ export const keys = {
   liabilities: ["liabilities"] as const,
 };
 
-export const useNetWorth = () => useQuery({ queryKey: keys.netWorth, queryFn: () => api.get<NetWorthSummary>("/networth") });
+// re-checked every minute while open, so prices picked up in the background show up without a reload
+export const useNetWorth = () => useQuery({ queryKey: keys.netWorth, queryFn: () => api.get<NetWorthSummary>("/networth"), refetchInterval: 60_000 });
 export const useNetWorthHistory = (months = 12) =>
   useQuery({ queryKey: keys.netWorthHistory(months), queryFn: () => api.get<NetWorthPoint[]>("/networth/history", { months }) });
-export const useHoldings = () => useQuery({ queryKey: keys.holdings, queryFn: () => api.get<Holding[]>("/networth/holdings") });
+export const useHoldings = () => useQuery({ queryKey: keys.holdings, queryFn: () => api.get<Holding[]>("/networth/holdings"), refetchInterval: 60_000 });
 export const useLiabilities = () => useQuery({ queryKey: keys.liabilities, queryFn: () => api.get<Liability[]>("/networth/liabilities") });
 
 /** Any change to assets or loans refreshes every wealth view (and the dashboard's net worth). */
@@ -75,7 +76,7 @@ export const useSyncHistory = () => useQuery({ queryKey: keys.syncHistory, query
 export function useInvalidateMoney() {
   const qc = useQueryClient();
   return () => {
-    for (const k of ["transactions", "transaction", "review", "review-count", "summary", "monthly", "daily", "accounts", "rules", "integrations", "sync-history", "networth", "networth-history", "budgets", "recurring", "cards", "goals", "analytics"]) {
+    for (const k of ["transactions", "transaction", "review", "review-count", "summary", "monthly", "daily", "accounts", "rules", "integrations", "sync-history", "networth", "networth-history", "budgets", "recurring", "cards", "analytics"]) {
       qc.invalidateQueries({ queryKey: [k] });
     }
   };

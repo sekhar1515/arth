@@ -93,20 +93,13 @@ class DeletionAndPlanningIT extends IntegrationTestBase {
     }
 
     @Test
-    void budgetGoalRecurringLifecycle() throws Exception {
+    void budgetAndRecurringLifecycle() throws Exception {
         Session s = register();
         UUID food = categoryId(s, "Food & Dining");
         JsonNode b = postJson(s, "/api/budgets", Map.of("categoryId", food, "period", "MONTHLY", "amount", "8000"), 201);
         assertEquals("Food & Dining", b.get("name").asText());
         postJson(s, "/api/budgets", Map.of("categoryId", food, "period", "MONTHLY", "amount", "9000"), 409);
         call(s, delete("/api/budgets/" + b.get("id").asText()), 204);
-
-        JsonNode g = postJson(s, "/api/goals", Map.of("name", "Trip", "kind", "TRAVEL", "targetAmount", "60000"), 201);
-        JsonNode g2 = postJson(s, "/api/goals/" + g.get("id").asText() + "/contributions", Map.of("amount", "15000"), 200);
-        assertEquals(0, new java.math.BigDecimal("25.0").compareTo(g2.get("projection").get("progressPct").decimalValue()));
-        String cid = g2.get("contributions").get(0).get("id").asText();
-        JsonNode g3 = call(s, delete("/api/goals/" + g.get("id").asText() + "/contributions/" + cid), 200);
-        assertEquals(0, g3.get("contributed").decimalValue().signum());
 
         JsonNode r = postJson(s, "/api/recurring", Map.of("name", "Rent", "kind", "RENT", "frequency", "MONTHLY", "amount", "25000", "nextDue", "2030-01-05"), 201);
         assertEquals("ACTIVE", r.get("status").asText());

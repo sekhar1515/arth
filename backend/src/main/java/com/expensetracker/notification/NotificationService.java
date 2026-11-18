@@ -29,7 +29,7 @@ public class NotificationService {
     }
 
     public record PreferencesDto(boolean emailEnabled, boolean emailAvailable, boolean browserEnabled, boolean budgetAlerts, boolean billReminders,
-                                 boolean subscriptionAlerts, boolean cardReminders, boolean unusualSpending, boolean goalUpdates,
+                                 boolean subscriptionAlerts, boolean cardReminders, boolean unusualSpending,
                                  boolean reviewReminders, BigDecimal largeTxnThreshold) {
     }
 
@@ -77,7 +77,7 @@ public class NotificationService {
             case SUBSCRIPTION -> p.isSubscriptionAlerts();
             case CARD -> p.isCardReminders();
             case UNUSUAL -> p.isUnusualSpending();
-            case GOAL -> p.isGoalUpdates();
+            case GOAL -> false; // goals were removed; kept so old notifications still load
             case REVIEW -> p.isReviewReminders();
             case SYSTEM -> true;
         };
@@ -139,7 +139,6 @@ public class NotificationService {
         p.setSubscriptionAlerts(r.subscriptionAlerts());
         p.setCardReminders(r.cardReminders());
         p.setUnusualSpending(r.unusualSpending());
-        p.setGoalUpdates(r.goalUpdates());
         p.setReviewReminders(r.reviewReminders());
         if (r.largeTxnThreshold() != null) {
             if (r.largeTxnThreshold().signum() <= 0) throw ApiException.badRequest("Large transaction amount must be more than zero");
@@ -151,7 +150,7 @@ public class NotificationService {
 
     private PreferencesDto toDto(NotificationPreferences p) {
         return new PreferencesDto(p.isEmailEnabled(), mailer.available(), p.isBrowserEnabled(), p.isBudgetAlerts(), p.isBillReminders(),
-                p.isSubscriptionAlerts(), p.isCardReminders(), p.isUnusualSpending(), p.isGoalUpdates(), p.isReviewReminders(), p.getLargeTxnThreshold());
+                p.isSubscriptionAlerts(), p.isCardReminders(), p.isUnusualSpending(), p.isReviewReminders(), p.getLargeTxnThreshold());
     }
 
     private static String cut(String s, int n) {

@@ -99,7 +99,7 @@ public class StockPriceService {
     }
 
     /** Bhavcopies appear around 6–7 pm IST on trading days; retry late at night in case they were delayed. */
-    @Scheduled(cron = "0 30 19,22 * * MON-FRI", zone = "Asia/Kolkata")
+    @Scheduled(cron = "0 5 18-23 * * MON-FRI", zone = "Asia/Kolkata")
     public void scheduledRefresh() {
         if (scheduleEnabled) refresh();
     }

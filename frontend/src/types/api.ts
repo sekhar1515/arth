@@ -411,18 +411,6 @@ export interface CreditCard {
 }
 export interface CardOverview { totalOutstanding: number; totalLimit: number; overallUtilisationPct: number | null; totalDue: number; cards: CreditCard[] }
 
-export type GoalKind = "EMERGENCY_FUND" | "HOUSE" | "CAR" | "TRAVEL" | "EDUCATION" | "RETIREMENT" | "WEDDING" | "GADGET" | "DEBT_PAYOFF" | "OTHER";
-export type GoalStatus = "ACTIVE" | "PAUSED" | "ACHIEVED" | "ARCHIVED";
-export interface GoalProjection {
-  saved: number; remaining: number; progressPct: number; monthsLeft: number | null; requiredMonthly: number | null; recentMonthly: number | null;
-  projectedDate: string | null; state: "ACHIEVED" | "ON_TRACK" | "BEHIND" | "IN_PROGRESS" | "NO_CONTRIBUTIONS";
-}
-export interface Goal {
-  id: string; name: string; kind: GoalKind; targetAmount: number; targetDate: string | null; startingAmount: number; contributed: number;
-  fromHoldings: number; expectedReturnPct: number; priority: number; status: GoalStatus; notes: string | null; version: number;
-  projection: GoalProjection; contributions: { id: string; amount: number; date: string; note: string | null; transactionId: string | null }[];
-  holdings: { holdingId: string; name: string; value: number; sharePct: number; counted: number; estimated: boolean }[]; explanation: string;
-}
 
 export interface Insight { type: string; severity: "INFO" | "WARNING" | "POSITIVE" | "CRITICAL"; title: string; detail: string; calculation: string; link: string | null }
 export interface AnalyticsReport {
@@ -443,5 +431,5 @@ export interface AssistantAnswer {
 export interface AppNotification { id: string; type: string; severity: "INFO" | "WARNING" | "CRITICAL"; title: string; body: string; link: string | null; createdAt: string; read: boolean }
 export interface NotificationPrefs {
   emailEnabled: boolean; emailAvailable: boolean; browserEnabled: boolean; budgetAlerts: boolean; billReminders: boolean; subscriptionAlerts: boolean;
-  cardReminders: boolean; unusualSpending: boolean; goalUpdates: boolean; reviewReminders: boolean; largeTxnThreshold: number;
+  cardReminders: boolean; unusualSpending: boolean; reviewReminders: boolean; largeTxnThreshold: number;
 }

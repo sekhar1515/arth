@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  BarChart3, Bell, Bot, CreditCard, FileBarChart, Inbox, Landmark, LayoutDashboard, ListOrdered, LogOut, Menu, Moon, PiggyBank, Plug,
-  Repeat, Settings, Shapes, Sun, Target, Wallet,
-} from "lucide-react";
+import { BarChart3, ChevronDown, Inbox, Landmark, LayoutDashboard, ListOrdered, LogOut, Menu, Moon, PiggyBank, Settings, Sun, Wallet } from "lucide-react";
 import { NotificationBell } from "./notification-bell";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -15,28 +12,62 @@ import { useMe, useReviewCount } from "@/hooks/queries";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/states";
 
-type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
+type NavLink = { href: string; label: string };
+type NavGroup = { label: string; icon: typeof LayoutDashboard; href?: string; items?: NavLink[] };
 
-export const NAV: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/transactions", label: "Transactions", icon: ListOrdered },
-  { href: "/review", label: "Needs Review", icon: Inbox },
-  { href: "/accounts", label: "Accounts", icon: Wallet },
-  { href: "/networth", label: "Net Worth", icon: Landmark },
-  { href: "/budgets", label: "Budgets", icon: PiggyBank },
-  { href: "/subscriptions", label: "Subscriptions & bills", icon: Repeat },
-  { href: "/credit-cards", label: "Credit Cards", icon: CreditCard },
-  { href: "/goals", label: "Goals", icon: Target },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/assistant", label: "Assistant", icon: Bot },
-  { href: "/reports", label: "Reports", icon: FileBarChart },
-  { href: "/categories", label: "Categories", icon: Shapes },
-  { href: "/notifications", label: "Notifications", icon: Bell },
-  { href: "/integrations", label: "Integrations", icon: Plug },
-  { href: "/settings", label: "Settings", icon: Settings },
+/** Six simple sections. Related pages live together (e.g. Analytics, Reports and Ask Arth under Insights). */
+export const NAV_GROUPS: NavGroup[] = [
+  { label: "Home", icon: LayoutDashboard, href: "/dashboard" },
+  {
+    label: "Transactions", icon: ListOrdered,
+    items: [
+      { href: "/transactions", label: "All transactions" },
+      { href: "/review", label: "Needs review" },
+      { href: "/integrations", label: "Import statements" },
+    ],
+  },
+  {
+    label: "Money", icon: Wallet,
+    items: [
+      { href: "/accounts", label: "Accounts" },
+      { href: "/credit-cards", label: "Credit cards" },
+      { href: "/networth", label: "Investments & net worth" },
+    ],
+  },
+  {
+    label: "Plan", icon: PiggyBank,
+    items: [
+      { href: "/budgets", label: "Budgets" },
+      { href: "/subscriptions", label: "Bills & subscriptions" },
+    ],
+  },
+  {
+    label: "Insights", icon: BarChart3,
+    items: [
+      { href: "/analytics", label: "Analytics" },
+      { href: "/reports", label: "Reports" },
+      { href: "/assistant", label: "Ask Arth" },
+    ],
+  },
+  {
+    label: "Settings", icon: Settings,
+    items: [
+      { href: "/settings", label: "Settings" },
+      { href: "/categories", label: "Categories & rules" },
+      { href: "/notifications", label: "Notifications" },
+    ],
+  },
 ];
 
-const MOBILE_TABS = ["/dashboard", "/transactions", "/review", "/accounts"];
+const isActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(href + "/");
+const groupOf = (pathname: string) => NAV_GROUPS.find((g) => g.items?.some((i) => isActive(pathname, i.href)))?.label;
+
+const MOBILE_TABS: { href: string; label: string; icon: typeof LayoutDashboard }[] = [
+  { href: "/dashboard", label: "Home", icon: LayoutDashboard },
+  { href: "/transactions", label: "Transactions", icon: ListOrdered },
+  { href: "/review", label: "Review", icon: Inbox },
+  { href: "/networth", label: "Net worth", icon: Landmark },
+];
 
 function Wordmark() {
   return (
@@ -51,33 +82,97 @@ function Wordmark() {
   );
 }
 
+function Badge({ n }: { n: number }) {
+  return n > 0 ? <span className="num min-w-6 rounded-full bg-marigold px-1.5 text-center text-xs font-bold text-[#3d2900]">{n}</span> : null;
+}
+
 function NavLinks({ onNavigate, reviewCount }: { onNavigate?: () => void; reviewCount: number }) {
   const pathname = usePathname();
+  const current = groupOf(pathname);
+  const [open, setOpen] = useState<Set<string>>(() => new Set(current ? [current] : []));
+  useEffect(() => {
+    if (current) setOpen((o) => (o.has(current) ? o : new Set(o).add(current)));
+  }, [current]);
+  const toggle = (label: string) =>
+    setOpen((o) => {
+      const next = new Set(o);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+
   return (
-    <nav className="flex flex-col gap-0.5" aria-label="Main">
-      {NAV.map((item) => {
-        const active = pathname === item.href || pathname.startsWith(item.href + "/");
-        const Icon = item.icon;
+    <nav className="flex flex-col gap-1" aria-label="Main">
+      {NAV_GROUPS.map((group) => {
+        const Icon = group.icon;
+        if (group.href) {
+          const active = isActive(pathname, group.href);
+          return (
+            <Link key={group.label} href={group.href} onClick={onNavigate} aria-current={active ? "page" : undefined}
+              className={cn("flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                active ? "bg-peacock-soft text-peacock" : "text-ink hover:bg-surface-2")}>
+              <Icon className="size-[18px] shrink-0" />
+              <span className="flex-1">{group.label}</span>
+            </Link>
+          );
+        }
+        const expanded = open.has(group.label);
+        const containsActive = current === group.label;
+        const groupBadge = group.label === "Transactions" && !expanded ? reviewCount : 0;
+        const id = `nav-${group.label.toLowerCase()}`;
         return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
-              active ? "bg-peacock-soft text-peacock" : "text-ink-2 hover:bg-surface-2 hover:text-ink",
+          <div key={group.label}>
+            <button type="button" onClick={() => toggle(group.label)} aria-expanded={expanded} aria-controls={id}
+              className={cn("flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors hover:bg-surface-2",
+                containsActive && !expanded ? "text-peacock" : "text-ink")}>
+              <Icon className="size-[18px] shrink-0" />
+              <span className="flex-1 text-left">{group.label}</span>
+              <Badge n={groupBadge} />
+              <ChevronDown className={cn("size-4 text-ink-3 transition-transform", expanded && "rotate-180")} />
+            </button>
+            {expanded && (
+              <div id={id} className="mb-1 ml-[22px] mt-0.5 flex flex-col gap-0.5 border-l border-line pl-3">
+                {group.items!.map((item) => {
+                  const active = isActive(pathname, item.href);
+                  return (
+                    <Link key={item.href} href={item.href} onClick={onNavigate} aria-current={active ? "page" : undefined}
+                      className={cn("flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+                        active ? "bg-peacock-soft font-semibold text-peacock" : "text-ink-2 hover:bg-surface-2 hover:text-ink")}>
+                      <span className="flex-1">{item.label}</span>
+                      {item.href === "/review" && <Badge n={reviewCount} />}
+                    </Link>
+                  );
+                })}
+              </div>
             )}
-          >
-            <Icon className="size-[18px] shrink-0" />
-            <span className="flex-1">{item.label}</span>
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** Tabs for the pages in the current section, so related pages are one tap apart (also on phones). */
+function SectionTabs({ reviewCount }: { reviewCount: number }) {
+  const pathname = usePathname();
+  const group = NAV_GROUPS.find((g) => g.items?.some((i) => isActive(pathname, i.href)));
+  if (!group?.items || group.items.length < 2) return null;
+  return (
+    <div className="-mx-1 mb-5 flex gap-1 overflow-x-auto px-1" role="tablist" aria-label={group.label}>
+      {group.items.map((item) => {
+        const active = isActive(pathname, item.href);
+        return (
+          <Link key={item.href} href={item.href} role="tab" aria-selected={active}
+            className={cn("flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+              active ? "border-peacock bg-peacock text-white" : "border-line text-ink-2 hover:bg-surface-2 hover:text-ink")}>
+            {item.label}
             {item.href === "/review" && reviewCount > 0 && (
-              <span className="num min-w-6 rounded-full bg-marigold px-1.5 text-center text-xs font-bold text-[#3d2900]">{reviewCount}</span>
+              <span className={cn("num rounded-full px-1.5 text-[11px] font-bold", active ? "bg-white/25" : "bg-marigold text-[#3d2900]")}>{reviewCount}</span>
             )}
           </Link>
         );
       })}
-    </nav>
+    </div>
   );
 }
 
@@ -157,7 +252,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-12 lg:pt-8">{children}</main>
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-12 lg:pt-8"><SectionTabs reviewCount={reviewCount} />{children}</main>
       </div>
 
       {/* mobile tab bar */}
@@ -165,13 +260,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
         aria-label="Primary"
       >
-        {NAV.filter((n) => MOBILE_TABS.includes(n.href)).map((item) => {
+        {MOBILE_TABS.map((item) => {
           const Icon = item.icon;
-          const active = pathname.startsWith(item.href);
+          const active = isActive(pathname, item.href);
           return (
             <Link key={item.href} href={item.href} className={cn("relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium", active ? "text-peacock" : "text-ink-3")}>
               <Icon className="size-5" />
-              {item.href === "/review" ? "Review" : item.label}
+              {item.label}
               {item.href === "/review" && reviewCount > 0 && (
                 <span className="num absolute right-[22%] top-1 rounded-full bg-marigold px-1.5 text-[10px] font-bold text-[#3d2900]">{reviewCount}</span>
               )}

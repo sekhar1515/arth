@@ -44,7 +44,7 @@ export default function NotificationsPage() {
 
   return (
     <>
-      <PageHeader title="Notifications" subtitle="Budget alerts, bills coming up, card due dates, price changes and goal milestones. Arth checks every hour."
+      <PageHeader title="Notifications" subtitle="Budget alerts, bills coming up, card due dates, and price changes. Arth checks every hour."
         actions={<>
           <Button variant="outline" size="sm" onClick={check} disabled={checking}><RefreshCw className={checking ? "animate-spin" : undefined} /> Check now</Button>
           <Button variant="outline" size="sm" onClick={() => act(() => api.post("/notifications/read-all"), "All marked read")}><CheckCheck /> Mark all read</Button>

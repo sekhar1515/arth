@@ -49,16 +49,24 @@ public class JwtService {
         return Jwts.builder()
                 .subject(userId.toString())
                 .claim("email", email)
+                .claim("iat_ms", now.toEpochMilli()) // exact issue time, so a reset can end sessions from the same second
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(ttl)))
                 .signWith(key)
                 .compact();
     }
 
+    private static Instant issuedAt(Claims claims) {
+        Number ms = claims.get("iat_ms", Number.class);
+        if (ms != null) return Instant.ofEpochMilli(ms.longValue());
+        return claims.getIssuedAt() == null ? null : claims.getIssuedAt().toInstant();
+    }
+
     public Optional<AuthenticatedUser> verify(String token) {
         try {
             Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
-            return Optional.of(new AuthenticatedUser(UUID.fromString(claims.getSubject()), claims.get("email", String.class)));
+            return Optional.of(new AuthenticatedUser(UUID.fromString(claims.getSubject()), claims.get("email", String.class),
+                    issuedAt(claims)));
         } catch (JwtException | IllegalArgumentException e) {
             return Optional.empty();
         }

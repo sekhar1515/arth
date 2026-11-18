@@ -51,7 +51,7 @@ public class NotificationController {
         return Map.of("deleted", service.clearRead(CurrentUser.id()));
     }
 
-    /** Runs the checks (budgets, bills, cards, goals, review) for the current user now instead of waiting for the hourly job. */
+    /** Runs the checks (budgets, bills, cards, review) for the current user now instead of waiting for the hourly job. */
     @PostMapping("/check")
     public Map<String, Integer> check() {
         return Map.of("created", alerts.runFor(CurrentUser.id()));

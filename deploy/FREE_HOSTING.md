@@ -104,7 +104,7 @@ Neon keeps a short restore window on the free plan; don't treat it as a backup. 
 - **Big imports:** a free API has a tiny CPU share. Import statements a few months at a time; a single file with thousands of rows can exceed Vercel's 120-second proxy limit. Re-importing a file is always safe: rows already there are skipped.
 - **Updating:** push to `main` and both Render and Vercel redeploy automatically.
 - **Outgrowing free:** move the API to Render's Starter plan (no sleep, more CPU), or the whole stack to one VPS with `docker-compose.prod.yml` (see `DEPLOY.md`).
-- **E-mail notifications:** add `SPRING_MAIL_HOST`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD`, `MAIL_FROM` on Render (e.g. Brevo's free SMTP).
+- **E-mail (needed for "Forgot password" and e-mail alerts):** add `SPRING_MAIL_HOST`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD`, `MAIL_FROM` on Render, e.g. with Brevo's free SMTP (`smtp-relay.brevo.com`, port 587). Without it, reset links appear only in Render's logs.
 
 ## Troubleshooting
 

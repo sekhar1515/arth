@@ -17,6 +17,15 @@ _Last updated: 17 November 2026_
 
 `mvn verify` now runs the integration tests too (the Failsafe plugin was missing, so they were silently skipped before).
 
+## Completed (milestone 5: simpler and faster)
+- **Simpler navigation:** six sections (Home, Transactions, Money, Plan, Insights, Settings) that open into their pages, plus tabs across the top of grouped pages (e.g. Analytics | Reports | Ask Arth). Phone bar: Home, Transactions, Review, Net worth, More.
+- **Goals removed** from the app (code, alerts, assistant answers, demo data). Existing goal tables are left in the database untouched.
+- **Prices stay current on their own:** fund NAVs checked hourly 7–9 am and 7–11 pm IST, stock/ETF/SGB closes hourly 6–11 pm on weekdays, a catch-up at start-up, and a background refresh when someone signs in or opens Net Worth while prices are behind (at most one attempt every 30 minutes). Net Worth re-checks every minute while open. Prices are official end-of-day data (AMFI, NSE/BSE), not intraday.
+- **Forgot password:** e-mailed single-use link valid for 30 minutes (only its hash is stored), no account enumeration, rate limited, two-step sign-in still required afterwards. Without SMTP configured, the link goes to the server log.
+- **Resetting or changing a password signs out every other session**, and deleted accounts lose access within a minute (sessions are now checked against a per-user "valid after" time).
+- **Faster sign-in:** password hashing at bcrypt cost 10 (OWASP minimum) instead of 12, about 5× faster (0.33 s → 0.07 s here; roughly 3 s → 0.6 s on Render's free CPU). Older hashes are upgraded on the next sign-in.
+- Local development now runs the production build of the web app, so pages open instantly instead of compiling on first visit.
+
 ## Completed (milestone 4c: Excel files)
 - **Bank statements and holdings can be Excel**: `.xlsx`, legacy `.xls`, and the HTML "xls" files some Indian banks send. Excel dates become real dates and numbers stay exact, whatever the sheet's display format.
 - Statements: the first sheet with a transaction table is used (summary sheets are skipped). Holdings: every sheet with a holdings table is imported (e.g. Zerodha Console's Equity and Mutual Funds sheets) and the results added together.
@@ -120,7 +129,7 @@ _Last updated: 17 November 2026_
 See `docs/FEASIBILITY.md`. Working now: manual entry, CSV statements, SMS forwarder webhook, Gmail Apps Script webhook. Planned: Gmail API, PhonePe statement. Unavailable: Account Aggregator (needs a regulated FIU), PhonePe API (no consumer API exists).
 
 ## Test results (17 November 2026)
-- Backend: `TEST_DB_URL=jdbc:postgresql://localhost:5432/arth_test mvn verify`: 93 unit + 50 integration, all passing.
+- Backend: `TEST_DB_URL=jdbc:postgresql://localhost:5432/arth_test mvn verify`: 94 unit + 54 integration, all passing.
 - Unknown URLs, wrong methods and missing parameters now return 404/405/400 instead of 500 (and no longer log stack traces).
 - Frontend: `npm run lint`, `npm test` (22 passing) and `npm run build`.
 
