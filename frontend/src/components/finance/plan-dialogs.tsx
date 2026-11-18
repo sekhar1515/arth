@@ -155,7 +155,7 @@ export function PfDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
           </Field>
         </div>
         <p className="mt-4 rounded-2xl bg-surface-2 p-3 text-xs text-ink-2">
-          Interest is credited once a year; update the balance from your passbook when it is (⋯ → Update value).
+          Interest at 8.25% a year (EPFO rate) is added automatically: worked out monthly and credited into the balance each March. Change the rate in Edit if yours differs.
         </p>
         <Button className="mt-4 w-full" disabled={busy || !f.balance} onClick={save}>Add PF</Button>
       </DialogContent>

@@ -67,6 +67,8 @@ public class PriceService {
     private final boolean scheduleEnabled;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).followRedirects(HttpClient.Redirect.NORMAL).build();
     private final AtomicReference<RefreshResult> last = new AtomicReference<>();
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.context.ApplicationEventPublisher events;
 
     public PriceService(NamedParameterJdbcTemplate jdbc, HoldingRepository holdings,
                         org.springframework.transaction.PlatformTransactionManager txManager,
@@ -128,6 +130,7 @@ public class PriceService {
             jdbc.batchUpdate(UPSERT_SCHEME, batch.subList(i, Math.min(i + 2000, batch.size())).toArray(new SqlParameterSource[0]));
         }
         int updated = repriceFundHoldings();
+        if (events != null) events.publishEvent(new PricesUpdatedEvent("fund NAVs"));
         return remember(new RefreshResult(true, records.size(), updated, latest, "Loaded " + records.size() + " schemes", Instant.now()));
     }
 

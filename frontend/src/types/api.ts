@@ -260,6 +260,8 @@ export interface Holding {
   startDate: string | null;
   maturityDate: string | null;
   priceAsOf: string | null;
+  accruedInterest: number | null;
+  interestAccruedTo: string | null;
   priceSource: "AMFI" | "BROKER_CSV" | "MANUAL" | "CALCULATED" | "EXCHANGE" | null;
   value: number;
   gain: number | null;
@@ -335,6 +337,8 @@ export interface NetWorthSummary {
   pricesNote: string;
   holdingsDayChange: number | null;
   holdingsDayChangePct: number | null;
+  sincePrevious: { since: string; amount: number; pct: number | null } | null;
+  sinceStart: { since: string; amount: number; pct: number | null } | null;
 }
 
 export interface NetWorthPoint {

@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PageHeader } from "@/components/layout/app-shell";
 import { BUCKET_LABEL, LiabilityDialog } from "@/components/finance/networth-dialogs";
-import { BUCKET_COLOR, Gain, GroupCard } from "@/components/finance/wealth-parts";
+import { BUCKET_COLOR, DayChange, Gain, GroupCard } from "@/components/finance/wealth-parts";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm";
 import { EmptyState, ErrorState, Panel, Skeleton } from "@/components/ui/states";
@@ -74,9 +74,17 @@ export default function NetWorthPage() {
                 You own <span className="num font-semibold text-ink">{inr(s.assets)}</span> and owe <span className="num font-semibold text-ink">{inr(s.liabilities)}</span>.
               </p>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-2">
+                {s.sincePrevious && (
+                  <span>Since {formatDate(s.sincePrevious.since, { day: "numeric", month: "short" })} <Gain value={s.sincePrevious.amount} pct={s.sincePrevious.pct} /></span>
+                )}
+                {s.holdingsDayChange != null && <span className="inline-flex items-center gap-1">Investments, latest day <DayChange value={s.holdingsDayChange} pct={s.holdingsDayChangePct} /></span>}
                 {s.change30d && <span>Last 30 days <Gain value={s.change30d.amount} pct={s.change30d.pct} /></span>}
+                {!s.change30d && s.sinceStart && s.sinceStart.since !== s.sincePrevious?.since && (
+                  <span>Since {formatDate(s.sinceStart.since, { day: "numeric", month: "short" })} <Gain value={s.sinceStart.amount} pct={s.sinceStart.pct} /></span>
+                )}
                 {s.changeYtd && <span>Since {formatDate(s.changeYtd.since, { day: "numeric", month: "short" })} <Gain value={s.changeYtd.amount} pct={s.changeYtd.pct} /></span>}
               </div>
+              <p className="mt-2 text-xs text-ink-3">Worked out live from your accounts, today&apos;s prices and interest earned.</p>
               {s.holdingsValue > 0 && (
                 <div className="mt-5 rounded-2xl bg-surface-2 p-4">
                   <p className="text-[13px] text-ink-2">Investments &amp; other assets</p>

@@ -31,7 +31,7 @@ public class HoldingService {
                              BigDecimal investedAmount, BigDecimal currentPrice, BigDecimal manualValue, BigDecimal interestRate,
                              Integer compoundingPerYear, LocalDate startDate, LocalDate maturityDate, Instant priceAsOf,
                              Holding.PriceSource priceSource, BigDecimal value, BigDecimal gain, BigDecimal gainPct, boolean estimated,
-                             String basis, String notes, boolean archived, long version) {
+                             String basis, String notes, boolean archived, long version, BigDecimal accruedInterest, LocalDate interestAccruedTo) {
     }
 
     public record ImportResult(int rows, int created, int updated, int linkedToAmfi, List<String> errors) {
@@ -62,6 +62,10 @@ public class HoldingService {
         if (req.assetClass() == null) throw ApiException.badRequest("Choose what kind of asset this is");
         Holding h = new Holding(userId, req.assetClass(), requireName(req.name()));
         apply(h, req, true);
+        if (h.getValuationMethod() == ValuationMethod.MANUAL) {
+            if (h.getInterestRate() == null) h.setInterestRate(InterestAccrual.defaultRate(h.getAssetClass()));
+            if (h.getInterestRate() != null) h.setInterestAccruedTo(TimeConfig.today(clock)); // interest counts from today
+        }
         h = repository.save(h);
         audit.record(userId, "HOLDING_CREATED", "holding", h.getId(), h.getAssetClass() + " " + h.getName());
         return toDto(h, TimeConfig.today(clock));
@@ -74,6 +78,9 @@ public class HoldingService {
         if (req.assetClass() != null) h.setAssetClass(req.assetClass());
         if (req.name() != null) h.setName(requireName(req.name()));
         apply(h, req, false);
+        if (h.getValuationMethod() == ValuationMethod.MANUAL && h.getInterestRate() != null && h.getInterestAccruedTo() == null) {
+            h.setInterestAccruedTo(TimeConfig.today(clock)); // a rate was just added: interest counts from today
+        }
         repository.flush();
         audit.record(userId, "HOLDING_UPDATED", "holding", id, h.getName());
         return toDto(h, TimeConfig.today(clock));
@@ -310,7 +317,8 @@ public class HoldingService {
         return new HoldingDto(h.getId(), h.getAssetClass(), h.getAssetClass().label(), h.getName(), h.getSymbol(), h.getIsin(), h.getSchemeCode(),
                 h.getFolio(), h.getPlatform(), h.getAllocation(), h.getValuationMethod(), h.getUnits(), h.getInvestedAmount(), h.getCurrentPrice(),
                 h.getManualValue(), h.getInterestRate(), h.getCompoundingPerYear(), h.getStartDate(), h.getMaturityDate(), h.getPriceAsOf(),
-                h.getPriceSource(), v.value(), v.gain(), v.gainPct(), v.estimated(), v.basis(), h.getNotes(), h.isArchived(), h.getVersion());
+                h.getPriceSource(), v.value(), v.gain(), v.gainPct(), v.estimated(), v.basis(), h.getNotes(), h.isArchived(), h.getVersion(),
+                h.getAccruedInterest(), h.getInterestAccruedTo());
     }
 
     private Holding require(UUID userId, UUID id) {

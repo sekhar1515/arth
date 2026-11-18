@@ -10,7 +10,13 @@ import java.time.temporal.ChronoUnit;
 public final class Valuation {
 
     public record Inputs(ValuationMethod method, BigDecimal units, BigDecimal price, BigDecimal manualValue, BigDecimal invested,
-                         BigDecimal annualRatePercent, Integer compoundingPerYear, LocalDate startDate, LocalDate maturityDate) {
+                         BigDecimal annualRatePercent, Integer compoundingPerYear, LocalDate startDate, LocalDate maturityDate,
+                         BigDecimal accruedInterest) {
+
+        public Inputs(ValuationMethod method, BigDecimal units, BigDecimal price, BigDecimal manualValue, BigDecimal invested,
+                      BigDecimal annualRatePercent, Integer compoundingPerYear, LocalDate startDate, LocalDate maturityDate) {
+            this(method, units, price, manualValue, invested, annualRatePercent, compoundingPerYear, startDate, maturityDate, null);
+        }
     }
 
     /**
@@ -44,6 +50,13 @@ public final class Valuation {
             case MANUAL -> {
                 value = in.manualValue() != null ? in.manualValue() : BigDecimal.ZERO;
                 basis = "value you entered";
+                if (in.accruedInterest() != null && in.accruedInterest().signum() > 0) {
+                    // interest earned this year, credited into the balance each 31 March
+                    value = value.add(in.accruedInterest());
+                    estimated = true;
+                    basis = "balance + interest earned this year at " + (in.annualRatePercent() == null ? "" : in.annualRatePercent().stripTrailingZeros().toPlainString() + "%")
+                            + " (credited each March)";
+                }
             }
             case FIXED_RATE -> {
                 value = compound(in.invested(), in.annualRatePercent(), in.compoundingPerYear(), in.startDate(), in.maturityDate(), today);

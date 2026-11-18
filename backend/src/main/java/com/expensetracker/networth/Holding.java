@@ -58,6 +58,10 @@ public class Holding {
     private LocalDate startDate;
     @Column(name = "maturity_date")
     private LocalDate maturityDate;
+    @Column(name = "accrued_interest", nullable = false, precision = 19, scale = 2)
+    private BigDecimal accruedInterest = BigDecimal.ZERO;
+    @Column(name = "interest_accrued_to")
+    private LocalDate interestAccruedTo;
     @Column(name = "price_as_of")
     private Instant priceAsOf;
     @Enumerated(EnumType.STRING)
@@ -94,7 +98,7 @@ public class Holding {
 
     public Valuation.Inputs valuationInputs() {
         return new Valuation.Inputs(valuationMethod, units, currentPrice, manualValue, investedAmount, interestRate, compoundingPerYear,
-                startDate, maturityDate);
+                startDate, maturityDate, accruedInterest);
     }
 
     public void applyPrice(BigDecimal price, Instant asOf, PriceSource source) {
@@ -103,6 +107,10 @@ public class Holding {
         this.priceSource = source;
     }
 
+    public BigDecimal getAccruedInterest() { return accruedInterest; }
+    public void setAccruedInterest(BigDecimal v) { accruedInterest = v == null ? BigDecimal.ZERO : v; }
+    public LocalDate getInterestAccruedTo() { return interestAccruedTo; }
+    public void setInterestAccruedTo(LocalDate v) { interestAccruedTo = v; }
     public UUID getId() { return id; }
     public UUID getUserId() { return userId; }
     public AssetClass getAssetClass() { return assetClass; }

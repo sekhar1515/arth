@@ -226,6 +226,11 @@ export function HoldingDialog({ holding, open, onOpenChange }: { holding?: Holdi
                   <Field label="Current value" htmlFor="h-value" hint="Update it whenever you check your passbook or statement">
                     <Input id="h-value" inputMode="decimal" className="num" value={f.manualValue} onChange={(e) => set({ manualValue: num(e.target.value) })} />
                   </Field>
+                  <Field label="Interest rate (% a year, optional)" htmlFor="h-mrate"
+                    hint={cls === "EPF" ? "EPF: 8.25% (FY 2024-25). Added monthly, credited each March" : cls === "PPF" ? "PPF: 7.1% now. Added monthly, credited each March" : "Leave empty if it doesn't earn a fixed rate"}>
+                    <Input id="h-mrate" inputMode="decimal" className="num" value={f.interestRate} placeholder={cls === "EPF" ? "8.25" : cls === "PPF" ? "7.1" : ""}
+                      onChange={(e) => set({ interestRate: num(e.target.value) })} />
+                  </Field>
                   <Field label="Amount invested / bought for (optional)" htmlFor="h-cost">
                     <Input id="h-cost" inputMode="decimal" className="num" value={f.investedAmount} onChange={(e) => set({ investedAmount: num(e.target.value) })} />
                   </Field>

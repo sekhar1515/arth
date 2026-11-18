@@ -384,4 +384,36 @@ class StockPricesAndNoteLearningIT extends IntegrationTestBase {
             for (JsonNode i : g.get("items")) if (i.get("id").asText().equals(typed.get("id").asText())) assertTrue(i.get("dayChange").isNull());
         }
     }
+
+    @Test
+    void pfEarnsInterestAndNetWorthShowsTheChangeSinceYesterday() throws Exception {
+        Session s = register();
+        JsonNode pf = postJson(s, "/api/networth/holdings", Map.of("assetClass", "EPF", "name", "EPF", "manualValue", "450000"), 201);
+        assertEquals(0, pf.get("interestRate").decimalValue().compareTo(new java.math.BigDecimal("8.25")), "official EPF rate by default");
+        // pretend it was added two full months ago (from the end of a month)
+        java.time.LocalDate today = java.time.LocalDate.now(com.expensetracker.common.TimeConfig.IST);
+        java.time.LocalDate from = today.withDayOfMonth(1).minusMonths(2).minusDays(1);
+        boolean crossesMarch = !from.plusMonths(2).isBefore(java.time.LocalDate.of(from.getYear() + (from.getMonthValue() >= 4 ? 1 : 0), 3, 31))
+                && from.getMonthValue() <= 3 && today.getMonthValue() >= 4;
+        plainJdbc.update("UPDATE holdings SET interest_accrued_to = ? WHERE id = ?", from, UUID.fromString(pf.get("id").asText()));
+        // and yesterday's net worth was 4,00,000
+        plainJdbc.update("INSERT INTO net_worth_snapshots (id, user_id, snapshot_date, assets, liabilities, net_worth) VALUES (?, ?, ?, 400000, 0, 400000)",
+                UUID.randomUUID(), s.userId(), today.minusDays(1));
+
+        JsonNode nw = getJson(s, "/api/networth");
+        JsonNode h = getJson(s, "/api/networth/holdings").get(0);
+        // two months at 8.25% on 4,50,000 = 2 × 3093.75 = 6187.50 (unless 31 March fell in between and it was credited)
+        java.math.BigDecimal total = h.get("manualValue").decimalValue().add(h.get("accruedInterest").decimalValue());
+        assertEquals(0, total.compareTo(new java.math.BigDecimal("456187.50")), "balance + interest");
+        assertEquals(0, h.get("value").decimalValue().compareTo(new java.math.BigDecimal("456187.50")));
+        if (!crossesMarch) assertTrue(h.get("estimated").asBoolean(), "this year's interest is an estimate until credited");
+
+        JsonNode since = nw.get("sincePrevious");
+        assertEquals(today.minusDays(1).toString(), since.get("since").asText());
+        assertEquals(0, since.get("amount").decimalValue().compareTo(nw.get("netWorth").decimalValue().subtract(new java.math.BigDecimal("400000"))));
+        // today's point was saved with the value just calculated
+        java.math.BigDecimal saved = plainJdbc.queryForObject("SELECT net_worth FROM net_worth_snapshots WHERE user_id = ? AND snapshot_date = ?",
+                java.math.BigDecimal.class, s.userId(), today);
+        assertEquals(0, saved.compareTo(nw.get("netWorth").decimalValue()));
+    }
 }

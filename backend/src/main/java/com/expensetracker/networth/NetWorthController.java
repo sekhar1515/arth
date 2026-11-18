@@ -38,10 +38,11 @@ public class NetWorthController {
     private final PriceRefresher refresher;
     private final ManualRefreshLimiter manualRefresh;
     private final InvestmentPlanService plans;
+    private final InterestAccrualService interest;
 
     public NetWorthController(NetWorthService netWorth, HoldingService holdings, LiabilityService liabilities, PriceService prices,
                               StockPriceService stockPrices, PriceRefresher refresher, ManualRefreshLimiter manualRefresh,
-                              InvestmentPlanService plans) {
+                              InvestmentPlanService plans, InterestAccrualService interest) {
         this.netWorth = netWorth;
         this.holdings = holdings;
         this.liabilities = liabilities;
@@ -50,12 +51,15 @@ public class NetWorthController {
         this.refresher = refresher;
         this.manualRefresh = manualRefresh;
         this.plans = plans;
+        this.interest = interest;
     }
 
     @GetMapping
     public NetWorthService.Summary summary() {
         refresher.refreshIfStale("net worth opened");
-        return netWorth.summary(CurrentUser.id());
+        UUID userId = CurrentUser.id();
+        interest.accrueFor(userId); // PF/PPF interest up to the last completed month
+        return netWorth.current(userId); // also saves today's point, so history and comparisons are current
     }
 
     @GetMapping("/history")

@@ -53,7 +53,8 @@ public class NetWorthService {
     public record Summary(BigDecimal netWorth, BigDecimal assets, BigDecimal liabilities, BigDecimal investedInHoldings,
                           BigDecimal holdingsValue, BigDecimal holdingsGain, BigDecimal holdingsGainPct, List<Group> assetGroups,
                           List<Group> liabilityGroups, List<AllocationSlice> allocation, Change change30d, Change changeYtd,
-                          int estimatedCount, String pricesNote, BigDecimal holdingsDayChange, BigDecimal holdingsDayChangePct) {
+                          int estimatedCount, String pricesNote, BigDecimal holdingsDayChange, BigDecimal holdingsDayChangePct,
+                          Change sincePrevious, Change sinceStart) {
     }
 
     public record Point(LocalDate date, BigDecimal assets, BigDecimal liabilities, BigDecimal netWorth) {
@@ -170,7 +171,30 @@ public class NetWorthService {
         return new Summary(net, assets, owed, invested.setScale(2, RoundingMode.HALF_UP), holdingsValue.setScale(2, RoundingMode.HALF_UP), gain, gainPct,
                 assetGroups, liabilityGroups, allocation, change(userId, today.minusDays(30), net), change(userId, LocalDate.of(today.getYear(), 1, 1), net),
                 estimated, pricesNote, dayChange == null ? null : dayChange.setScale(2, RoundingMode.HALF_UP),
-                dayChange == null || dayBase.signum() == 0 ? null : dayChange.multiply(BigDecimal.valueOf(100)).divide(dayBase, 2, RoundingMode.HALF_UP));
+                dayChange == null || dayBase.signum() == 0 ? null : dayChange.multiply(BigDecimal.valueOf(100)).divide(dayBase, 2, RoundingMode.HALF_UP),
+                change(userId, today.minusDays(1), net), sinceStart(userId, today, net));
+    }
+
+    /** Change since the first saved day, for people whose history is too short for "last 30 days". */
+    private Change sinceStart(UUID userId, LocalDate today, BigDecimal current) {
+        return snapshots.findFirstByUserIdOrderBySnapshotDateAsc(userId)
+                .filter(first -> first.getSnapshotDate().isBefore(today))
+                .map(first -> change(userId, first.getSnapshotDate(), current))
+                .orElse(null);
+    }
+
+    /** Today's net worth, saved as today's point at the same time so the history and comparisons stay current. */
+    @Transactional
+    public Summary current(UUID userId) {
+        Summary s = summary(userId);
+        save(userId, s);
+        return s;
+    }
+
+    /** New NAVs or closes were loaded: refresh everyone's point for today (in the background). */
+    @org.springframework.transaction.event.TransactionalEventListener(fallbackExecution = true)
+    public void onPricesUpdated(PricesUpdatedEvent e) {
+        java.util.concurrent.CompletableFuture.runAsync(this::nightlySnapshots);
     }
 
     /**
@@ -205,7 +229,10 @@ public class NetWorthService {
     /** Records today's net worth (one row per day, replaced on each change). */
     @Transactional
     public void snapshot(UUID userId) {
-        Summary s = summary(userId);
+        save(userId, summary(userId));
+    }
+
+    private void save(UUID userId, Summary s) {
         LocalDate today = TimeConfig.today(clock);
         NetWorthSnapshot snap = snapshots.findByUserIdAndSnapshotDate(userId, today).orElseGet(() -> new NetWorthSnapshot(userId, today));
         Map<String, BigDecimal> breakdown = new LinkedHashMap<>();
@@ -285,7 +312,13 @@ public class NetWorthService {
     }
 
     private static String sourceLabel(HoldingService.HoldingDto d) {
-        if (d.valuationMethod() == ValuationMethod.MANUAL) return "Value you entered";
+        if (d.valuationMethod() == ValuationMethod.MANUAL) {
+            if (d.accruedInterest() != null && d.accruedInterest().signum() > 0) {
+                return "Incl. " + com.expensetracker.analytics.InrFormat.format(d.accruedInterest()) + " interest at "
+                        + d.interestRate().stripTrailingZeros().toPlainString() + "% (est.)";
+            }
+            return d.interestRate() != null ? "Balance + " + d.interestRate().stripTrailingZeros().toPlainString() + "% interest" : "Value you entered";
+        }
         if (d.valuationMethod() == ValuationMethod.FIXED_RATE) return "Estimated from rate";
         if (d.priceSource() == null) return "No price yet";
         String on = d.priceAsOf() == null ? "" : " · " + InrDates.shortDate(d.priceAsOf().atZone(com.expensetracker.common.TimeConfig.IST).toLocalDate());

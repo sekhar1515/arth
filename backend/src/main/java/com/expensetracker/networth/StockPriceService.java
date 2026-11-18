@@ -84,6 +84,8 @@ public class StockPriceService {
     private final boolean scheduleEnabled;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).followRedirects(HttpClient.Redirect.NORMAL).build();
     private final AtomicReference<RefreshResult> last = new AtomicReference<>();
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.context.ApplicationEventPublisher events;
 
     public StockPriceService(NamedParameterJdbcTemplate jdbc, HoldingRepository holdings, PlatformTransactionManager txManager, Clock clock,
                              @Value("${app.prices.nse-bhavcopy-url:https://nsearchives.nseindia.com/content/cm/BhavCopy_NSE_CM_0_0_0_%s_F_0000.csv.zip}") String nseUrl,
@@ -190,6 +192,7 @@ public class StockPriceService {
             jdbc.batchUpdate(UPSERT, batch.subList(i, Math.min(i + 2000, batch.size())).toArray(new SqlParameterSource[0]));
         }
         int updated = repriceHoldings();
+        if (events != null) events.publishEvent(new PricesUpdatedEvent("exchange closes"));
         return remember(new RefreshResult(true, quotes.size(), updated, latest,
                 "Loaded " + quotes.size() + " exchange prices" + (latest == null ? "" : " for " + latest), Instant.now()));
     }
