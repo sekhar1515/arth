@@ -244,4 +244,103 @@ class StockPricesAndNoteLearningIT extends IntegrationTestBase {
             }
         }
     }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    org.springframework.jdbc.core.JdbcTemplate plainJdbc;
+
+    private String navFileDated(java.time.LocalDate d) {
+        String date = d.format(java.time.format.DateTimeFormatter.ofPattern("dd-MMM-yyyy", java.util.Locale.ENGLISH));
+        return """
+                Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Plan;Option;Net Asset Value;Date
+
+                Open Ended Schemes(Equity Scheme - Index Funds)
+
+                HDFC Mutual Fund
+
+                119063;INF179K01WM1;-;HDFC Nifty 50 Index Fund;Direct Plan;Growth Option;250.0000;%s
+                """.formatted(date);
+    }
+
+    @Test
+    void sipAddsUnitsAndRecordsTheBankDebitWhichMergesWithTheStatement() throws Exception {
+        Session s = register();
+        java.time.LocalDate today = java.time.LocalDate.now(com.expensetracker.common.TimeConfig.IST);
+        priceService.loadNavFile(navFileDated(today));
+        UUID bank = createAccount(s, "HDFC", "BANK", "4444", "100000");
+        JsonNode fund = postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "HDFC Nifty 50", "schemeCode", "119063",
+                "units", "100", "investedAmount", "20000"), 201);
+        java.time.LocalDate due = today.minusDays(1).getDayOfMonth() > 28 ? today.minusDays(4) : today.minusDays(1);
+        JsonNode plan = postJson(s, "/api/networth/plans", Map.of("holdingId", fund.get("id").asText(), "amount", "5000",
+                "dayOfMonth", due.getDayOfMonth(), "accountId", bank.toString()), 201);
+        assertEquals("SIP", plan.get("kind").asText());
+        // pretend the plan was set up before this month's SIP date
+        plainJdbc.update("UPDATE investment_plans SET last_run_date = ?, start_date = ? WHERE id = ?",
+                due.minusDays(1), due.minusDays(1), UUID.fromString(plan.get("id").asText()));
+
+        JsonNode list = getJson(s, "/api/networth/plans"); // runs what is due
+        JsonNode inst = list.get(0).get("installments");
+        assertEquals(1, inst.size());
+        assertEquals(due.toString(), inst.get(0).get("dueDate").asText());
+        assertEquals(0, inst.get(0).get("units").decimalValue().compareTo(new java.math.BigDecimal("20.000")), "5000 / 250 NAV");
+
+        JsonNode h = getJson(s, "/api/networth/holdings").get(0);
+        assertEquals(0, h.get("units").decimalValue().compareTo(new java.math.BigDecimal("120")));
+        assertEquals(0, h.get("investedAmount").decimalValue().compareTo(new java.math.BigDecimal("25000")));
+        // the bank balance fell by the SIP: 1,00,000 - 5,000
+        JsonNode acc = getJson(s, "/api/accounts");
+        for (JsonNode a : acc.isArray() ? acc : acc.get("content")) {
+            if (a.get("id").asText().equals(bank.toString())) assertEquals(0, a.get("balance").decimalValue().compareTo(new java.math.BigDecimal("95000")));
+        }
+        // running again doesn't apply it twice
+        getJson(s, "/api/networth/plans");
+        assertEquals(0, getJson(s, "/api/networth/holdings").get(0).get("units").decimalValue().compareTo(new java.math.BigDecimal("120")));
+
+        // the bank statement arrives a day later with the real line: it merges, no duplicate
+        String csv = "Date,Narration,Withdrawal Amt.,Deposit Amt.\n" + due.plusDays(1) + ",ACH D- HDFC MF SIP 98765,5000.00,\n";
+        JsonNode r = importCsv(s, bank, csv);
+        assertEquals(1, r.get("merged").asInt());
+        assertEquals(0, r.get("imported").asInt());
+        JsonNode txns = getJson(s, "/api/transactions?accountId=" + bank + "&size=10").get("content");
+        assertEquals(1, txns.size());
+        assertTrue(txns.get(0).get("description").asText().contains("HDFC MF SIP"), "the bank's own description is kept");
+    }
+
+    @Test
+    void pfContributionAddsYourAndEmployerPartsWithoutABankDebit() throws Exception {
+        Session s = register();
+        java.time.LocalDate today = java.time.LocalDate.now(com.expensetracker.common.TimeConfig.IST);
+        JsonNode pf = postJson(s, "/api/networth/holdings", Map.of("assetClass", "EPF", "name", "EPF", "manualValue", "500000"), 201);
+        java.time.LocalDate due = today.getDayOfMonth() > 28 ? today.minusDays(4) : today;
+        JsonNode plan = postJson(s, "/api/networth/plans", Map.of("holdingId", pf.get("id").asText(), "amount", "1800", "employerAmount", "1800",
+                "dayOfMonth", due.getDayOfMonth()), 201);
+        assertEquals("CONTRIBUTION", plan.get("kind").asText());
+        assertEquals(0, plan.get("total").decimalValue().compareTo(new java.math.BigDecimal("3600")));
+        plainJdbc.update("UPDATE investment_plans SET last_run_date = ?, start_date = ? WHERE id = ?",
+                due.minusDays(1), due.minusDays(1), UUID.fromString(plan.get("id").asText()));
+        getJson(s, "/api/networth/plans");
+        JsonNode h = getJson(s, "/api/networth/holdings").get(0);
+        assertEquals(0, h.get("manualValue").decimalValue().compareTo(new java.math.BigDecimal("503600")));
+        assertEquals(0, getJson(s, "/api/transactions?size=5").get("totalElements").asInt(), "PF comes out of salary: no bank debit");
+
+        // a SIP needs a fund; a contribution needs something valued by hand
+        postJson(s, "/api/networth/plans", Map.of("holdingId", pf.get("id").asText(), "kind", "SIP", "amount", "100"), 400);
+    }
+
+    @Test
+    void anAlreadyImportedDebitIsLinkedNotDuplicated() throws Exception {
+        Session s = register();
+        java.time.LocalDate today = java.time.LocalDate.now(com.expensetracker.common.TimeConfig.IST);
+        priceService.loadNavFile(navFileDated(today));
+        UUID bank = createAccount(s, "ICICI", "BANK", "5555", "50000");
+        java.time.LocalDate due = today.minusDays(1).getDayOfMonth() > 28 ? today.minusDays(4) : today.minusDays(1);
+        importCsv(s, bank, "Date,Narration,Withdrawal Amt.,Deposit Amt.\n" + due + ",NACH DR HDFC MF,3000.00,\n");
+        JsonNode fund = postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "HDFC Nifty 50", "schemeCode", "119063", "units", "10"), 201);
+        JsonNode plan = postJson(s, "/api/networth/plans", Map.of("holdingId", fund.get("id").asText(), "amount", "3000",
+                "dayOfMonth", due.getDayOfMonth(), "accountId", bank.toString()), 201);
+        plainJdbc.update("UPDATE investment_plans SET last_run_date = ?, start_date = ? WHERE id = ?",
+                due.minusDays(1), due.minusDays(1), UUID.fromString(plan.get("id").asText()));
+        JsonNode inst = getJson(s, "/api/networth/plans").get(0).get("installments").get(0);
+        assertFalse(inst.get("transactionId").isNull());
+        assertEquals(1, getJson(s, "/api/transactions?accountId=" + bank + "&size=10").get("totalElements").asInt(), "linked to the statement line");
+    }
 }

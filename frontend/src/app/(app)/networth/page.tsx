@@ -1,83 +1,32 @@
 "use client";
 
-import { FileUp, Landmark, MoreHorizontal, Pencil, Plus, RefreshCw, Trash2, TrendingDown, TrendingUp } from "lucide-react";
+import { Landmark, Plus, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PageHeader } from "@/components/layout/app-shell";
-import { BUCKET_LABEL, canFetchPrice, HoldingDialog, ImportHoldingsDialog, LiabilityDialog, SourceBadge, UpdateValueDialog } from "@/components/finance/networth-dialogs";
+import { BUCKET_LABEL, LiabilityDialog } from "@/components/finance/networth-dialogs";
+import { BUCKET_COLOR, Gain, GroupCard } from "@/components/finance/wealth-parts";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm";
-import { Menu, MenuItem } from "@/components/ui/menu";
 import { EmptyState, ErrorState, Panel, Skeleton } from "@/components/ui/states";
-import { useHoldings, useInvalidateWealth, useLiabilities, useNetWorth, useNetWorthHistory } from "@/hooks/queries";
+import { useHoldings, useInvalidateWealth, useLiabilities, useNetWorth, useNetWorthHistory, usePlans } from "@/hooks/queries";
 import { api, ApiError } from "@/lib/api";
 import { formatDate, inr, inrCompact } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { AllocationBucket, Holding, Liability, NetWorthGroup, NetWorthItem } from "@/types/api";
-
-const BUCKET_COLOR: Record<AllocationBucket, string> = {
-  EQUITY: "#0F5E63", DEBT: "#6366F1", HYBRID: "#8B5CF6", GOLD: "#E8A317", REAL_ESTATE: "#B45309", CASH: "#5FB3B0", OTHER: "#94A3B8",
-};
-
-function Gain({ value, pct, className }: { value: number | null; pct: number | null; className?: string }) {
-  if (value === null) return null;
-  const up = value >= 0;
-  return (
-    <span className={cn("num inline-flex items-center gap-1 text-xs font-semibold", up ? "text-in" : "text-out", className)}>
-      {up ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
-      {up ? "+" : "−"}{inr(Math.abs(value))}{pct !== null && ` (${up ? "+" : ""}${pct}%)`}
-    </span>
-  );
-}
+import type { Liability, NetWorthItem } from "@/types/api";
 
 export default function NetWorthPage() {
   const nw = useNetWorth();
   const history = useNetWorthHistory(12);
   const holdings = useHoldings();
   const liabilities = useLiabilities();
+  const plans = usePlans();
   const invalidate = useInvalidateWealth();
-  const [dialog, setDialog] = useState<null | "asset" | "loan" | "import">(null);
-  const [editHolding, setEditHolding] = useState<Holding | null>(null);
-  const [updateHolding, setUpdateHolding] = useState<Holding | null>(null);
+  const [dialog, setDialog] = useState<null | "loan">(null);
   const [editLoan, setEditLoan] = useState<Liability | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const s = nw.data;
-
-  async function refreshPrices() {
-    setRefreshing(true);
-    try {
-      type Part = { ok: boolean; holdingsUpdated: number; message: string };
-      const r = await api.post<{ ok: boolean; holdingsUpdated: number; message: string; latestNavDate: string | null;
-        funds: Part & { latestNavDate: string | null }; stocks: Part & { priceDate: string | null } }>("/networth/prices/refresh");
-      const parts = [
-        r.funds.ok ? `fund NAVs${r.funds.latestNavDate ? ` for ${formatDate(r.funds.latestNavDate)}` : ""}` : null,
-        r.stocks.ok ? `stock prices${r.stocks.priceDate ? ` for ${formatDate(r.stocks.priceDate)}` : ""}` : null,
-      ].filter(Boolean);
-      if (r.ok) toast.success(`Loaded ${parts.join(" and ")}. ${r.holdingsUpdated} holding${r.holdingsUpdated === 1 ? "" : "s"} re-priced.`);
-      if (!r.funds.ok) toast.error(r.funds.message);
-      if (!r.stocks.ok) toast.error(r.stocks.message);
-      invalidate();
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Couldn't refresh prices");
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
-  async function uploadPriceFile(file: File) {
-    const form = new FormData();
-    form.append("file", file);
-    try {
-      const r = await api.post<{ ok: boolean; holdingsUpdated: number; message: string }>("/networth/prices/bhavcopy", form);
-      if (r.ok) toast.success(`${r.message}. ${r.holdingsUpdated} holding${r.holdingsUpdated === 1 ? "" : "s"} re-priced.`);
-      else toast.error(r.message);
-      invalidate();
-    } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Couldn't read that file");
-    }
-  }
 
   const { confirm, dialog: confirmDialog } = useConfirm();
 
@@ -106,13 +55,11 @@ export default function NetWorthPage() {
     <>
       <PageHeader
         title="Net Worth"
-        subtitle="Everything you own minus everything you owe. Bank balances, cards and loans come from your accounts. Investments and other assets you add here."
+        subtitle="Everything you own minus everything you owe. Bank balances and cards come from your accounts; investments, SIPs and PF from the Investments tab."
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={refreshPrices} disabled={refreshing}><RefreshCw className={refreshing ? "animate-spin" : undefined} /> Refresh prices</Button>
-            <Button variant="outline" size="sm" onClick={() => setDialog("import")}><FileUp /> Import holdings</Button>
             <Button variant="outline" size="sm" onClick={() => setDialog("loan")}><Plus /> Add loan</Button>
-            <Button size="sm" onClick={() => setDialog("asset")}><Plus /> Add investment or asset</Button>
+            <Button size="sm" asChild><Link href="/investments"><TrendingUp /> Investments</Link></Button>
           </>
         }
       />
@@ -181,11 +128,37 @@ export default function NetWorthPage() {
             </div>
           </section>
 
+          {(plans.data ?? []).some((p) => p.active) && (() => {
+            const active = (plans.data ?? []).filter((p) => p.active);
+            const monthly = active.reduce((t, p) => t + p.total, 0);
+            const upcoming = [...active].filter((p) => p.nextDue).sort((a, b) => a.nextDue!.localeCompare(b.nextDue!)).slice(0, 4);
+            return (
+              <section className="rounded-3xl border border-line bg-surface p-5">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 className="font-semibold">SIPs &amp; monthly contributions</h2>
+                  <Link href="/investments" className="text-sm font-medium text-peacock hover:underline">Manage →</Link>
+                </div>
+                <p className="mt-1 text-sm text-ink-2">
+                  <span className="num font-semibold text-ink">{inr(monthly)}</span> goes into your investments every month ({active.length} {active.length === 1 ? "plan" : "plans"}).
+                  On each date the bank account is debited and the investment grows, so your net worth stays right.
+                </p>
+                <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {upcoming.map((p) => (
+                    <li key={p.id} className="flex items-center justify-between gap-3 rounded-2xl bg-surface-2 px-3 py-2 text-sm">
+                      <span className="min-w-0 truncate">{p.holdingName}<span className="block text-xs text-ink-3">{p.kind === "SIP" ? "SIP" : "Contribution"}{p.accountName ? ` from ${p.accountName}` : ""}</span></span>
+                      <span className="shrink-0 text-right"><span className="num font-semibold">{inr(p.total)}</span><span className="block text-xs text-ink-3">{formatDate(p.nextDue!, { day: "numeric", month: "short" })}</span></span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })()}
+
           {empty && (
             <Panel>
               <EmptyState icon={<Landmark />} title="Add what you own"
-                body="Mutual funds, stocks, FDs, PPF, EPF, NPS, gold, property: add them once and Arth keeps the total up to date. Fund NAVs refresh every night from AMFI; stock, ETF and SGB prices every trading evening from NSE/BSE."
-                action={<div className="flex flex-wrap justify-center gap-2"><Button onClick={() => setDialog("asset")}>Add investment or asset</Button><Button variant="outline" onClick={() => setDialog("import")}>Import from broker</Button></div>} />
+                body="Add mutual funds, stocks, SIPs, PF, PPF, NPS, gold or property in the Investments tab, and loans here. Arth keeps the total up to date."
+                action={<Button asChild><Link href="/investments">Add investments</Link></Button>} />
             </Panel>
           )}
 
@@ -193,14 +166,7 @@ export default function NetWorthPage() {
             <div className="min-w-0 space-y-4">
               <h2 className="font-display text-lg font-semibold">What you own</h2>
               {s.assetGroups.map((g) => (
-                <GroupCard key={g.key} g={g} fetchable={(id) => { const h = holdings.data?.find((x) => x.id === id); return !!h && canFetchPrice(h); }} onAction={(item, action) => {
-                  if (item.kind === "ACCOUNT") return;
-                  const h = holdings.data?.find((x) => x.id === item.id);
-                  if (!h) return;
-                  if (action === "update") setUpdateHolding(h);
-                  else if (action === "edit") setEditHolding(h);
-                  else removeItem(item);
-                }} />
+                <GroupCard key={g.key} g={g} manageHref={g.items.some((i) => i.kind === "HOLDING") ? "/investments" : undefined} />
               ))}
             </div>
             <div className="min-w-0 space-y-4">
@@ -214,67 +180,14 @@ export default function NetWorthPage() {
                   else if (l) setEditLoan(l);
                 }} />
               ))}
-              <p className="text-xs text-ink-3">{s.pricesNote}{s.estimatedCount > 0 && `. ${s.estimatedCount} value${s.estimatedCount === 1 ? " is an estimate" : "s are estimates"} (marked in yellow).`}</p>
-              <p className="text-xs text-ink-3">
-                Server can&apos;t reach the exchanges?{" "}
-                <label className="cursor-pointer font-semibold text-peacock hover:underline">
-                  Upload an NSE/BSE bhavcopy
-                  <input type="file" accept=".csv,.zip" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPriceFile(f); e.target.value = ""; }} />
-                </label>{" "}
-                (CSV or zip from nseindia.com → Market data → All reports).
-              </p>
             </div>
           </div>
         </div>
       )}
 
-      {dialog === "asset" && <HoldingDialog open onOpenChange={(o) => !o && setDialog(null)} />}
       {dialog === "loan" && <LiabilityDialog open onOpenChange={(o) => !o && setDialog(null)} />}
-      {dialog === "import" && <ImportHoldingsDialog open onOpenChange={(o) => !o && setDialog(null)} />}
-      {editHolding && <HoldingDialog holding={editHolding} open onOpenChange={(o) => !o && setEditHolding(null)} />}
-      {updateHolding && <UpdateValueDialog holding={updateHolding} open onOpenChange={(o) => !o && setUpdateHolding(null)} />}
       {editLoan && <LiabilityDialog liability={editLoan} open onOpenChange={(o) => !o && setEditLoan(null)} />}
       {confirmDialog}
     </>
-  );
-}
-
-function GroupCard({ g, negative, onAction, fetchable }: { g: NetWorthGroup; negative?: boolean; onAction: (item: NetWorthItem, action: "update" | "edit" | "remove") => void; fetchable?: (id: string) => boolean }) {
-  return (
-    <section className="overflow-hidden rounded-3xl border border-line bg-surface">
-      <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-line px-5 py-3.5">
-        <h3 className="font-semibold">{g.label}</h3>
-        <div className="text-right">
-          <span className={cn("num font-semibold", negative && "text-out")}>{inr(g.value)}</span>
-          {g.gain !== null && <Gain value={g.gain} pct={g.gainPct} className="ml-2" />}
-        </div>
-      </header>
-      <ul className="divide-y divide-line">
-        {g.items.map((i) => (
-          <li key={i.id} className="flex items-center gap-3 px-5 py-3">
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{i.kind === "ACCOUNT" ? <Link href="/accounts" className="hover:underline">{i.name}</Link> : i.name}</p>
-              <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3">
-                {i.detail && <span>{i.detail}</span>}
-                {i.kind === "HOLDING" && <SourceBadge source={i.source} estimated={i.estimated} />}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="num text-sm font-semibold">{inr(i.value)}</p>
-              {i.gain !== null && <Gain value={i.gain} pct={i.gainPct} />}
-            </div>
-            {i.kind !== "ACCOUNT" && (
-              <Menu trigger={<Button variant="ghost" size="icon" aria-label={`Actions for ${i.name}`}><MoreHorizontal /></Button>}>
-                {i.kind === "HOLDING" && !i.source.startsWith("Estimated") && (
-                  <MenuItem onSelect={() => onAction(i, "update")}><RefreshCw className="size-4 text-ink-3" /> {fetchable?.(i.id) ? "Get latest price" : "Update value"}</MenuItem>
-                )}
-                <MenuItem onSelect={() => onAction(i, "edit")}><Pencil className="size-4 text-ink-3" /> Edit</MenuItem>
-                <MenuItem danger onSelect={() => onAction(i, "remove")}><Trash2 className="size-4" /> Delete</MenuItem>
-              </Menu>
-            )}
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }

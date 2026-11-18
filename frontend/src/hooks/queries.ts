@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type {
+  InvestmentPlan,
+  PriceStatus,
   Account, CatalogueEntry, Category, DashboardSummary, DayPoint, Holding, ImportResult, Liability, MonthPoint, NetWorthPoint,
   NetWorthSummary, Page, Preferences, RememberScope, SyncRecord, Transaction, TransactionDetail, User,
 } from "@/types/api";
@@ -32,6 +34,8 @@ export const keys = {
 export const useNetWorth = () => useQuery({ queryKey: keys.netWorth, queryFn: () => api.get<NetWorthSummary>("/networth"), refetchInterval: 60_000 });
 export const useNetWorthHistory = (months = 12) =>
   useQuery({ queryKey: keys.netWorthHistory(months), queryFn: () => api.get<NetWorthPoint[]>("/networth/history", { months }) });
+export const usePlans = () => useQuery({ queryKey: ["plans"], queryFn: () => api.get<InvestmentPlan[]>("/networth/plans") });
+export const usePriceStatus = () => useQuery({ queryKey: ["price-refresh-status"], queryFn: () => api.get<PriceStatus>("/networth/prices/refresh-status"), refetchInterval: 60_000 });
 export const useHoldings = () => useQuery({ queryKey: keys.holdings, queryFn: () => api.get<Holding[]>("/networth/holdings"), refetchInterval: 60_000 });
 export const useLiabilities = () => useQuery({ queryKey: keys.liabilities, queryFn: () => api.get<Liability[]>("/networth/liabilities") });
 
@@ -39,7 +43,7 @@ export const useLiabilities = () => useQuery({ queryKey: keys.liabilities, query
 export function useInvalidateWealth() {
   const qc = useQueryClient();
   return () => {
-    for (const k of ["networth", "networth-history", "holdings", "liabilities", "summary"]) qc.invalidateQueries({ queryKey: [k] });
+    for (const k of ["networth", "networth-history", "holdings", "liabilities", "summary", "plans", "accounts", "transactions", "price-refresh-status"]) qc.invalidateQueries({ queryKey: [k] });
   };
 }
 

@@ -236,12 +236,13 @@ public class NetWorthService {
         if (d.valuationMethod() == ValuationMethod.MANUAL) return "Value you entered";
         if (d.valuationMethod() == ValuationMethod.FIXED_RATE) return "Estimated from rate";
         if (d.priceSource() == null) return "No price yet";
+        String on = d.priceAsOf() == null ? "" : " · " + InrDates.shortDate(d.priceAsOf().atZone(com.expensetracker.common.TimeConfig.IST).toLocalDate());
         return switch (d.priceSource()) {
-            case AMFI -> "AMFI NAV";
-            case BROKER_CSV -> "Broker export";
-            case MANUAL -> "Price you entered";
+            case AMFI -> "AMFI NAV" + on;
+            case BROKER_CSV -> "Broker export" + on;
+            case MANUAL -> "Price you entered" + on;
             case CALCULATED -> "Calculated";
-            case EXCHANGE -> "NSE/BSE close";
+            case EXCHANGE -> "NSE/BSE close" + on;
         };
     }
 }

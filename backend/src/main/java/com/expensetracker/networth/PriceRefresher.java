@@ -116,6 +116,24 @@ public class PriceRefresher {
         }
     }
 
+    public LocalDate latestNavDate() {
+        return latest("SELECT max(nav_date) FROM mf_schemes");
+    }
+
+    public LocalDate latestCloseDate() {
+        return latest("SELECT max(price_date) FROM security_prices");
+    }
+
+    /** True when AMFI should have published a NAV newer than the one Arth has. */
+    public boolean fundsBehind() {
+        return isBehind(latestNavDate(), expectedDate(clock.instant(), NAVS_OUT));
+    }
+
+    /** True when NSE/BSE should have published a close newer than the one Arth has. */
+    public boolean stocksBehind() {
+        return isBehind(latestCloseDate(), expectedDate(clock.instant(), CLOSES_OUT));
+    }
+
     private LocalDate latest(String sql) {
         return jdbc.queryForObject(sql, new MapSqlParameterSource(), LocalDate.class);
     }

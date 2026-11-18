@@ -36,15 +36,20 @@ public class NetWorthController {
     private final PriceService prices;
     private final StockPriceService stockPrices;
     private final PriceRefresher refresher;
+    private final ManualRefreshLimiter manualRefresh;
+    private final InvestmentPlanService plans;
 
     public NetWorthController(NetWorthService netWorth, HoldingService holdings, LiabilityService liabilities, PriceService prices,
-                              StockPriceService stockPrices, PriceRefresher refresher) {
+                              StockPriceService stockPrices, PriceRefresher refresher, ManualRefreshLimiter manualRefresh,
+                              InvestmentPlanService plans) {
         this.netWorth = netWorth;
         this.holdings = holdings;
         this.liabilities = liabilities;
         this.prices = prices;
         this.stockPrices = stockPrices;
         this.refresher = refresher;
+        this.manualRefresh = manualRefresh;
+        this.plans = plans;
     }
 
     @GetMapping
@@ -171,6 +176,33 @@ public class NetWorthController {
         return new HoldingService.ImportResult(rows, created, updated, linked, errors);
     }
 
+    // ---------------------------------------------------------------- SIPs and contributions
+
+    @GetMapping("/plans")
+    public List<InvestmentPlanService.PlanDto> listPlans() {
+        UUID userId = CurrentUser.id();
+        var list = plans.list(userId); // applies anything that has become due first
+        netWorth.snapshot(userId);
+        return list;
+    }
+
+    @PostMapping("/plans")
+    @ResponseStatus(HttpStatus.CREATED)
+    public InvestmentPlanService.PlanDto createPlan(@RequestBody InvestmentPlanService.PlanRequest req) {
+        return plans.create(CurrentUser.id(), req);
+    }
+
+    @PutMapping("/plans/{id}")
+    public InvestmentPlanService.PlanDto updatePlan(@PathVariable UUID id, @RequestBody InvestmentPlanService.PlanRequest req) {
+        return plans.update(CurrentUser.id(), id, req);
+    }
+
+    @DeleteMapping("/plans/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deletePlan(@PathVariable UUID id) {
+        plans.delete(CurrentUser.id(), id);
+    }
+
     // ---------------------------------------------------------------- liabilities
 
     @GetMapping("/liabilities")
@@ -214,17 +246,71 @@ public class NetWorthController {
                                   PriceService.RefreshResult funds, StockPriceService.RefreshResult stocks) {
     }
 
-    /** Refreshes mutual fund NAVs (AMFI) and exchange closing prices (NSE/BSE) together. */
+    /**
+     * "Refresh prices": downloads only what is actually behind (fund NAVs from AMFI, closes from NSE/BSE). When Arth
+     * already has the newest published prices it makes no outside call, re-applies what it has, and says when newer
+     * prices will exist; such a press doesn't use up the once-per-window allowance.
+     */
     @PostMapping("/prices/refresh")
     public CombinedRefresh refreshPrices() {
-        CurrentUser.id();
-        PriceService.RefreshResult funds = prices.refreshMutualFunds();
-        StockPriceService.RefreshResult stocks = stockPrices.refresh();
+        UUID userId = CurrentUser.id();
+        RefreshWindows.Status window = manualRefresh.status(userId);
+        // Outside the refresh windows (or once used) the button still answers: it shows the latest values Arth has and
+        // says when newer ones come, without downloading anything.
+        boolean fundsBehind = window.allowed() && refresher.fundsBehind();
+        boolean stocksBehind = window.allowed() && refresher.stocksBehind();
+        if (fundsBehind || stocksBehind) manualRefresh.claim(userId); // a real download counts as this window's refresh
+
+        PriceService.RefreshResult funds = fundsBehind ? friendly(prices.refreshMutualFunds()) : cachedFunds();
+        StockPriceService.RefreshResult stocks = stocksBehind ? friendly(stockPrices.refresh()) : cachedStocks();
         List<String> parts = new java.util.ArrayList<>();
-        parts.add(funds.ok() ? "Fund NAVs" + (funds.latestNavDate() == null ? "" : " for " + funds.latestNavDate()) : "Fund NAVs failed: " + funds.message());
-        parts.add(stocks.ok() ? "stock prices" + (stocks.priceDate() == null ? "" : " for " + stocks.priceDate()) : "stock prices failed: " + stocks.message());
+        parts.add(funds.message());
+        parts.add(stocks.message());
         return new CombinedRefresh(funds.ok() || stocks.ok(), funds.holdingsUpdated() + stocks.holdingsUpdated(), funds.latestNavDate(),
-                String.join("; ", parts), funds, stocks);
+                String.join(" ", parts), funds, stocks);
+    }
+
+    private static PriceService.RefreshResult friendly(PriceService.RefreshResult r) {
+        if (!r.ok()) return r;
+        return new PriceService.RefreshResult(true, r.schemesLoaded(), r.holdingsUpdated(), r.latestNavDate(),
+                "Fund NAVs updated" + (r.latestNavDate() == null ? "." : " to " + InrDates.shortDate(r.latestNavDate()) + "."), r.at());
+    }
+
+    private static StockPriceService.RefreshResult friendly(StockPriceService.RefreshResult r) {
+        if (!r.ok()) return r;
+        return new StockPriceService.RefreshResult(true, r.securitiesLoaded(), r.holdingsUpdated(), r.priceDate(),
+                "Stock prices updated" + (r.priceDate() == null ? "." : " to the " + InrDates.shortDate(r.priceDate()) + " close."), r.at());
+    }
+
+    private PriceService.RefreshResult cachedFunds() {
+        int n = prices.repriceFundHoldings();
+        java.time.LocalDate d = refresher.latestNavDate();
+        return new PriceService.RefreshResult(true, 0, n, d, d == null ? "Fund NAVs aren't loaded yet; they arrive with the next AMFI update."
+                : "Fund NAVs shown are for " + InrDates.shortDate(d) + ". New NAVs come once AMFI publishes them (usually by 10 pm), and Arth picks them up automatically.",
+                java.time.Instant.now());
+    }
+
+    private StockPriceService.RefreshResult cachedStocks() {
+        int n = stockPrices.repriceHoldings();
+        java.time.LocalDate d = refresher.latestCloseDate();
+        java.time.ZonedDateTime ist = java.time.ZonedDateTime.now(com.expensetracker.common.TimeConfig.IST);
+        boolean beforeClose = ist.toLocalTime().isBefore(RefreshWindows.CLOSE);
+        String msg = d == null ? "Stock prices aren't loaded yet; they arrive after the next market close."
+                : d.equals(ist.toLocalDate()) ? "Stock prices shown are today's close (" + InrDates.shortDate(d) + ")."
+                : beforeClose ? "Stock prices shown are the " + InrDates.shortDate(d) + " close. They refresh after 3:45 pm on working days."
+                : "Stock prices shown are the " + InrDates.shortDate(d) + " close. Today's close is published by the exchanges in the evening, and Arth picks it up automatically.";
+        return new StockPriceService.RefreshResult(true, 0, n, d, msg, java.time.Instant.now());
+    }
+
+    public record PriceStatus(boolean allowed, RefreshWindows.Window window, java.time.Instant nextAllowedAt, String reason,
+                              java.time.LocalDate latestNavDate, java.time.LocalDate latestCloseDate) {
+    }
+
+    /** Whether "Refresh prices" can be pressed now (and if not, when), plus the dates of the newest NAVs and closes. */
+    @GetMapping("/prices/refresh-status")
+    public PriceStatus refreshStatus() {
+        var s = manualRefresh.status(CurrentUser.id());
+        return new PriceStatus(s.allowed(), s.window(), s.nextAllowedAt(), s.reason(), refresher.latestNavDate(), refresher.latestCloseDate());
     }
 
     @GetMapping("/securities")

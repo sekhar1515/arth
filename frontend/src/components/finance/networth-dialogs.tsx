@@ -347,7 +347,7 @@ export function UpdateValueDialog({ holding, open, onOpenChange }: { holding: Ho
                   <p className="mt-1 text-xs text-ink-3">{priceWord} was ₹{result.previousPrice}; now ₹{result.price}</p>
                 )}
                 {result.previousPrice != null && Number(result.previousPrice) === Number(result.price) && (
-                  <p className="mt-1 text-xs text-ink-3">Already up to date. {fund ? "Funds publish one NAV a day, in the evening." : "Prices update after each trading day closes."}</p>
+                  <p className="mt-1 text-xs text-ink-3">Already the latest. {fund ? "Funds publish today's NAV late tonight, so check again tomorrow." : "Today's closing price comes after the market closes, so check again after 3:45 pm."}</p>
                 )}
                 <Button className="mt-4 w-full" onClick={() => onOpenChange(false)}>Done</Button>
               </div>

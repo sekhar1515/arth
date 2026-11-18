@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, ChevronDown, Inbox, Landmark, LayoutDashboard, ListOrdered, LogOut, Menu, Moon, PiggyBank, Settings, Sun, Wallet } from "lucide-react";
+import { BarChart3, ChevronDown, Inbox, LayoutDashboard, ListOrdered, LogOut, Menu, Moon, PiggyBank, Settings, Sun, TrendingUp, Wallet } from "lucide-react";
 import { NotificationBell } from "./notification-bell";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/states";
 type NavLink = { href: string; label: string };
 type NavGroup = { label: string; icon: typeof LayoutDashboard; href?: string; items?: NavLink[] };
 
-/** Six simple sections. Related pages live together (e.g. Analytics, Reports and Ask Arth under Insights). */
+/** Seven simple sections. Related pages live together (e.g. Analytics, Reports and Ask Arth under Insights). */
 export const NAV_GROUPS: NavGroup[] = [
   { label: "Home", icon: LayoutDashboard, href: "/dashboard" },
   {
@@ -31,7 +31,13 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/accounts", label: "Accounts" },
       { href: "/credit-cards", label: "Credit cards" },
-      { href: "/networth", label: "Investments & net worth" },
+    ],
+  },
+  {
+    label: "Investments & net worth", icon: TrendingUp,
+    items: [
+      { href: "/investments", label: "Investments" },
+      { href: "/networth", label: "Net worth" },
     ],
   },
   {
@@ -66,7 +72,7 @@ const MOBILE_TABS: { href: string; label: string; icon: typeof LayoutDashboard }
   { href: "/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/transactions", label: "Transactions", icon: ListOrdered },
   { href: "/review", label: "Review", icon: Inbox },
-  { href: "/networth", label: "Net worth", icon: Landmark },
+  { href: "/investments", label: "Investments", icon: TrendingUp },
 ];
 
 function Wordmark() {

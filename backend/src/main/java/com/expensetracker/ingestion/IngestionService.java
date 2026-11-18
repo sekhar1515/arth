@@ -1,5 +1,6 @@
 package com.expensetracker.ingestion;
 
+import com.expensetracker.transaction.SourceType;
 import com.expensetracker.account.AccountService;
 import com.expensetracker.categorisation.CategorisationService;
 import com.expensetracker.category.Category;
@@ -78,6 +79,19 @@ public class IngestionService {
             return new IngestOutcome(IngestOutcome.Result.PREVIOUSLY_DELETED, null, "you deleted this transaction earlier, so it was skipped");
         }
         Optional<Merchant> merchant = merchants.resolve(userId, raw.counterparty());
+
+        Optional<Transaction> planned = raw.sourceType() == SourceType.SCHEDULED ? Optional.empty() : scheduledMatch(userId, raw);
+        if (planned.isPresent()) {
+            // the real line for a SIP/contribution debit Arth recorded: keep one transaction, with the bank's details
+            Transaction t = planned.get();
+            t.setTxnAt(raw.txnAt());
+            t.setTimeKnown(raw.timeKnown());
+            if (raw.description() != null) t.setDescription(raw.description());
+            if (raw.reference() != null) t.setReferenceNumber(raw.reference());
+            if (raw.counterparty() != null && t.getCounterparty() == null) t.setCounterparty(raw.counterparty());
+            saveSource(userId, t.getId(), raw);
+            return new IngestOutcome(IngestOutcome.Result.MERGED, t.getId(), "matched the SIP/contribution debit Arth recorded");
+        }
 
         DedupMatcher.Candidate incoming = new DedupMatcher.Candidate(null, raw.accountId(), raw.direction(), raw.amount(),
                 raw.txnAt(), raw.timeKnown(), raw.reference(), merchant.map(Merchant::getNormalizedName).orElse(null));
@@ -167,6 +181,22 @@ public class IngestionService {
             }
         }
         return changed;
+    }
+
+    /** A debit Arth recorded for a plan (only SCHEDULED sources) on the same account, same amount, within 4 days. */
+    private Optional<Transaction> scheduledMatch(UUID userId, RawTransaction raw) {
+        if (raw.direction() != Direction.DEBIT) return Optional.empty();
+        Duration window = Duration.ofDays(4);
+        List<Transaction> near = transactions.findByUserIdAndDirectionAndAmountAndTxnAtBetween(userId, raw.direction(), raw.amount(),
+                raw.txnAt().minus(window), raw.txnAt().plus(window));
+        Transaction best = null;
+        for (Transaction t : near) {
+            if (!raw.accountId().equals(t.getAccountId())) continue;
+            List<TransactionSource> src = sources.findByTransactionIdOrderByImportedAt(t.getId());
+            if (src.isEmpty() || !src.stream().allMatch(x -> x.getSourceType() == SourceType.SCHEDULED)) continue;
+            if (best == null || Duration.between(t.getTxnAt(), raw.txnAt()).abs().compareTo(Duration.between(best.getTxnAt(), raw.txnAt()).abs()) < 0) best = t;
+        }
+        return Optional.ofNullable(best);
     }
 
     private List<Transaction> candidates(UUID userId, RawTransaction raw) {

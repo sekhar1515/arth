@@ -433,3 +433,15 @@ export interface NotificationPrefs {
   emailEnabled: boolean; emailAvailable: boolean; browserEnabled: boolean; budgetAlerts: boolean; billReminders: boolean; subscriptionAlerts: boolean;
   cardReminders: boolean; unusualSpending: boolean; reviewReminders: boolean; largeTxnThreshold: number;
 }
+
+export interface PlanInstallment { dueDate: string; amount: number; nav: number | null; navDate: string | null; units: number | null; transactionId: string | null }
+export interface InvestmentPlan {
+  id: string; kind: "SIP" | "CONTRIBUTION"; holdingId: string; holdingName: string; assetClass: AssetClass | null;
+  amount: number; employerAmount: number | null; total: number; dayOfMonth: number; startDate: string; endDate: string | null;
+  accountId: string | null; accountName: string | null; active: boolean; nextDue: string | null; lastRunDate: string | null;
+  waiting: string | null; installments: PlanInstallment[]; version: number;
+}
+export interface PriceStatus {
+  allowed: boolean; window: "BEFORE_OPEN" | "MARKET_HOURS" | "AFTER_CLOSE"; nextAllowedAt: string | null; reason: string | null;
+  latestNavDate: string | null; latestCloseDate: string | null;
+}

@@ -23,6 +23,8 @@ public class User {
     private boolean demo;
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+    @Column(name = "last_price_refresh_at")
+    private Instant lastPriceRefreshAt;
     @Column(name = "sessions_valid_after")
     private Instant sessionsValidAfter;
     @Column(name = "last_login_at")
@@ -52,6 +54,8 @@ public class User {
     public String getDisplayName() { return displayName; }
     public boolean isDemo() { return demo; }
     public Instant getCreatedAt() { return createdAt; }
+    public Instant getLastPriceRefreshAt() { return lastPriceRefreshAt; }
+    public void setLastPriceRefreshAt(Instant v) { this.lastPriceRefreshAt = v; }
     public Instant getSessionsValidAfter() { return sessionsValidAfter; }
     public void setSessionsValidAfter(Instant v) { this.sessionsValidAfter = v; }
     public Instant getLastLoginAt() { return lastLoginAt; }
