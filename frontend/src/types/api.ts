@@ -315,6 +315,7 @@ export interface NetWorthGroup {
   gainPct: number | null;
   items: NetWorthItem[];
   dayChange: number | null;
+  dayChangePct: number | null;
 }
 
 export interface NetWorthSummary {

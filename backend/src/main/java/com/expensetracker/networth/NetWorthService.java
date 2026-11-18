@@ -38,7 +38,7 @@ public class NetWorthService {
     }
 
     public record Group(String key, String label, BigDecimal value, BigDecimal invested, BigDecimal gain, BigDecimal gainPct, List<Item> items,
-                        BigDecimal dayChange) {
+                        BigDecimal dayChange, BigDecimal dayChangePct) {
     }
 
     private record DayMove(BigDecimal change, BigDecimal base, LocalDate on) {
@@ -258,7 +258,10 @@ public class NetWorthService {
         BigDecimal pct = invested != null && invested.signum() > 0 ? gain.multiply(BigDecimal.valueOf(100)).divide(invested, 2, RoundingMode.HALF_UP) : null;
         List<Item> moved = items.stream().filter(i -> i.dayChange() != null).toList();
         BigDecimal day = moved.isEmpty() ? null : moved.stream().map(Item::dayChange).reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new Group(key, label, value, invested, gain, pct, items, day);
+        // previous value of the holdings that moved: value now minus the move
+        BigDecimal before = moved.stream().map(i -> i.value().subtract(i.dayChange())).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal dayPct = day == null || before.signum() <= 0 ? null : day.multiply(BigDecimal.valueOf(100)).divide(before, 2, RoundingMode.HALF_UP);
+        return new Group(key, label, value, invested, gain, pct, items, day, dayPct);
     }
 
     private static String label(AccountType t) {

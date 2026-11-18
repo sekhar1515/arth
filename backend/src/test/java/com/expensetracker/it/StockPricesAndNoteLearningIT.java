@@ -371,6 +371,13 @@ class StockPricesAndNoteLearningIT extends IntegrationTestBase {
                 if (i.get("name").asText().equals("Infosys")) assertEquals(0, i.get("dayChange").decimalValue().compareTo(new java.math.BigDecimal("36.00")));
             }
         }
+        for (JsonNode g : nw.get("assetGroups")) {
+            if (g.get("key").asText().equals("MUTUAL_FUND")) {
+                assertEquals(0, g.get("dayChange").decimalValue().compareTo(new java.math.BigDecimal("1000.00")));
+                assertEquals(0, g.get("dayChangePct").decimalValue().compareTo(new java.math.BigDecimal("4.17")), "1000 on a previous 24,000");
+            }
+            if (g.get("key").asText().equals("STOCK")) assertEquals(0, g.get("dayChange").decimalValue().compareTo(new java.math.BigDecimal("36.00")));
+        }
         // a price typed by hand isn't the official one, so no day change is claimed for it
         JsonNode typed = postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "Typed", "schemeCode", "119063", "folio", "F2", "units", "1", "currentPrice", "99"), 201);
         for (JsonNode g : getJson(s, "/api/networth").get("assetGroups")) {

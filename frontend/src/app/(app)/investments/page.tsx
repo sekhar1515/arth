@@ -150,6 +150,33 @@ export default function InvestmentsPage() {
             </div>
           </section>
 
+          {groups.length > 0 && (
+            <section className="overflow-hidden rounded-3xl border border-line bg-surface" aria-label="Investments by type">
+              <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3 border-b border-line px-5 py-2.5 text-xs font-medium text-ink-3 sm:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))]">
+                <span>By type</span>
+                <span className="text-right">Value</span>
+                <span className="hidden text-right sm:block">Overall gain</span>
+                <span className="text-right">Latest day</span>
+              </div>
+              <ul className="divide-y divide-line">
+                {groups.map((g) => (
+                  <li key={g.key} className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 px-5 py-3 text-sm sm:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))]">
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">{g.label}</span>
+                      <span className="block text-xs text-ink-3">{g.items.length} {g.items.length === 1 ? "holding" : "holdings"}{g.invested != null ? ` · put in ${inr(g.invested)}` : ""}</span>
+                    </span>
+                    <span className="num text-right font-semibold">
+                      {inr(g.value)}
+                      <span className="block sm:hidden">{g.gain != null && <Gain value={g.gain} pct={g.gainPct} />}</span>
+                    </span>
+                    <span className="hidden text-right sm:block">{g.gain != null ? <Gain value={g.gain} pct={g.gainPct} /> : <span className="text-xs text-ink-3">—</span>}</span>
+                    <span className="text-right">{g.dayChange != null ? <DayChange value={g.dayChange} pct={g.dayChangePct} /> : <span className="text-xs text-ink-3">{g.key === "MUTUAL_FUND" || g.key === "STOCK" || g.key === "ETF" ? "after next update" : "—"}</span>}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           {groups.length === 0 && (
             <Panel>
               <EmptyState icon={<TrendingUp />} title="Add your investments"
