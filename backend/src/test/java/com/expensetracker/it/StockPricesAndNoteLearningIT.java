@@ -170,10 +170,78 @@ class StockPricesAndNoteLearningIT extends IntegrationTestBase {
         // a fund with no ISIN or scheme can't be looked up, and says how to fix it
         JsonNode loose = postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "Some fund", "units", "10", "currentPrice", "50"), 201);
         JsonNode err = postJson(s, "/api/networth/holdings/" + loose.get("id").asText() + "/latest-price", Map.of(), 422);
-        assertTrue(err.get("error").get("message").asText().contains("isn't linked to an AMFI scheme"));
+        assertEquals("FUND_NOT_LINKED", err.get("error").get("code").asText());
 
         // things valued by hand have no market price to fetch
         JsonNode ppf = postJson(s, "/api/networth/holdings", Map.of("assetClass", "PPF", "name", "PPF", "manualValue", "150000"), 201);
         postJson(s, "/api/networth/holdings/" + ppf.get("id").asText() + "/latest-price", Map.of(), 422);
+    }
+
+    @Test
+    void fundsAddedByNameLinkThemselvesOnlyWhenUnambiguous() throws Exception {
+        Session s = register();
+        priceService.loadNavFile("""
+                Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Plan;Option;Net Asset Value;Date
+
+                Open Ended Schemes(Equity Scheme - Flexi Cap Fund)
+
+                PPFAS Mutual Fund
+
+                122639;INF879O01027;-;Parag Parikh Flexi Cap Fund;Direct Plan;Growth Option;94.2890;17-Nov-2026
+                122640;-;INF879O01035;Parag Parikh Flexi Cap Fund;Direct Plan;IDCW Option;40.1000;17-Nov-2026
+                122638;INF879O01019;-;Parag Parikh Flexi Cap Fund;Regular Plan;Growth Option;86.5000;17-Nov-2026
+                """);
+        // a full name says plan and option: linked automatically
+        JsonNode exact = postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "parag parikh flexi cap direct growth",
+                "units", "10", "currentPrice", "90"), 201);
+        JsonNode r = postJson(s, "/api/networth/holdings/" + exact.get("id").asText() + "/latest-price", Map.of(), 200);
+        assertEquals("122639", r.get("holding").get("schemeCode").asText());
+        assertEquals(0, r.get("price").decimalValue().compareTo(new java.math.BigDecimal("94.289")));
+
+        // a bare name fits three schemes: Arth asks instead of guessing
+        JsonNode vague = postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "Parag Parikh Flexi Cap",
+                "units", "10", "currentPrice", "90"), 201);
+        String id = vague.get("id").asText();
+        JsonNode err = postJson(s, "/api/networth/holdings/" + id + "/latest-price", Map.of(), 422);
+        assertEquals("FUND_NOT_LINKED", err.get("error").get("code").asText());
+
+        // picking the scheme links it and prices it from AMFI straight away
+        JsonNode linked = putJson(s, "/api/networth/holdings/" + id, Map.of("schemeCode", "122638"), 200);
+        assertEquals("122638", linked.get("schemeCode").asText());
+        assertEquals("AMFI", linked.get("priceSource").asText());
+        assertEquals(0, linked.get("currentPrice").decimalValue().compareTo(new java.math.BigDecimal("86.5")));
+        postJson(s, "/api/networth/holdings/" + id + "/latest-price", Map.of(), 200);
+    }
+
+    @Test
+    void growwStyleExportWithoutIsinsLinksFundsByName() throws Exception {
+        Session s = register();
+        priceService.loadNavFile("""
+                Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Plan;Option;Net Asset Value;Date
+
+                Open Ended Schemes(Equity Scheme - Small Cap Fund)
+
+                Quant Mutual Fund
+
+                120828;INF966L01689;-;Quant Small Cap Fund;Direct Plan;Growth Option;311.2140;17-Nov-2026
+                152107;INF082J01499;-;QUANTUM SMALL CAP FUND;Direct Plan;Growth Option;13.8200;17-Nov-2026
+                """);
+        String csv = """
+                Scheme Name,AMC,Category,Units,Invested Value,Current Value
+                Quant Small Cap Fund Direct Plan Growth,Quant,Equity,791.547,200000,246262
+                Some Unknown Fund,Other,Equity,10,1000,1200
+                """;
+        MockMultipartFile f = new MockMultipartFile("file", "groww.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8));
+        JsonNode r = call(s, multipart("/api/networth/holdings/import").file(f).param("platform", "Groww"), 200);
+        assertEquals(2, r.get("created").asInt());
+        assertEquals(1, r.get("linkedToAmfi").asInt(), "Quant links by name; it is not confused with Quantum");
+        for (JsonNode h : getJson(s, "/api/networth/holdings")) {
+            if (h.get("name").asText().startsWith("Quant")) {
+                assertEquals("120828", h.get("schemeCode").asText());
+                assertEquals("INF966L01689", h.get("isin").asText());
+            } else {
+                assertTrue(h.get("schemeCode").isNull(), "an unknown name stays unlinked rather than guessed");
+            }
+        }
     }
 }

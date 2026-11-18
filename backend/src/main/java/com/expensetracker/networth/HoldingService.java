@@ -100,9 +100,10 @@ public class HoldingService {
         BigDecimal before = h.getCurrentPrice();
         if (h.getAssetClass() == AssetClass.MUTUAL_FUND) {
             if (h.getSchemeCode() == null && h.getIsin() != null) prices.byIsin(h.getIsin()).ifPresent(s -> h.setSchemeCode(s.schemeCode()));
+            if (h.getSchemeCode() == null) prices.matchByName(h.getName()).ifPresent(s -> PriceService.link(h, s));
             if (h.getSchemeCode() == null) {
-                throw ApiException.unprocessable("This fund isn't linked to an AMFI scheme, so its NAV can't be looked up. "
-                        + "Choose Edit, delete it and add it again by searching for the fund, or import your holdings file with ISINs.");
+                throw new ApiException(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY, "FUND_NOT_LINKED",
+                        "Which fund is this? Pick it from AMFI's list so Arth can look up its NAV.");
             }
             var scheme = prices.byCode(h.getSchemeCode()).orElseThrow(() -> ApiException.unprocessable(
                     "AMFI's fund list isn't loaded yet. Try again in a minute."));
@@ -194,6 +195,20 @@ public class HoldingService {
                 if (s.isPresent()) {
                     h.setSchemeCode(s.get().schemeCode());
                     h.setAllocation(AssetClass.allocationForFundCategory(s.get().category()));
+                    linked++;
+                }
+            }
+            if (cls == AssetClass.MUTUAL_FUND && h.getSchemeCode() == null && h.getIsin() == null) {
+                // exports without ISINs (e.g. Groww): link by the fund's name when it points to exactly one scheme
+                final Holding target = h;
+                Optional<PriceService.Scheme> s = prices.matchByName(row.name());
+                if (s.isPresent()) {
+                    target.setSchemeCode(s.get().schemeCode());
+                    target.setAllocation(AssetClass.allocationForFundCategory(s.get().category()));
+                    String isin = s.get().isinGrowth() != null ? s.get().isinGrowth() : s.get().isinReinvest();
+                    boolean taken = isin != null && mine.stream().anyMatch(o -> o != target && isin.equals(o.getIsin())
+                            && java.util.Objects.equals(o.getFolio(), target.getFolio()) && java.util.Objects.equals(o.getPlatform(), target.getPlatform()));
+                    if (isin != null && !taken) target.setIsin(isin);
                     linked++;
                 }
             }

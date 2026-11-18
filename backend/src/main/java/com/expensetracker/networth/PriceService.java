@@ -135,6 +135,11 @@ public class PriceService {
         for (Holding h : holdings.findByArchivedFalseAndAssetClassAndSchemeCodeIsNullAndIsinIsNotNull(AssetClass.MUTUAL_FUND)) {
             byIsin(h.getIsin()).ifPresent(s -> h.setSchemeCode(s.schemeCode()));
         }
+        // funds added by name only: link them when the name points to exactly one scheme
+        for (Holding h : holdings.findAll()) {
+            if (h.isArchived() || h.getAssetClass() != AssetClass.MUTUAL_FUND || h.getSchemeCode() != null || h.getIsin() != null) continue;
+            matchByName(h.getName()).ifPresent(s -> link(h, s));
+        }
         holdings.flush();
         List<Holding> funds = holdings.findAll().stream()
                 .filter(h -> !h.isArchived() && h.getSchemeCode() != null && h.getValuationMethod() == ValuationMethod.MARKET_PRICE).toList();
@@ -156,17 +161,43 @@ public class PriceService {
         return n;
     }
 
+    /**
+     * Fund search: an exact scheme code or ISIN, or every word of the query somewhere in the name, in any order
+     * ("hdfc index nifty 50" finds "HDFC NIFTY 50 Index Fund"). Direct-Growth plans come first.
+     */
     public List<Scheme> search(String q) {
         if (q == null || q.trim().length() < 2) return List.of();
         String t = q.trim();
-        String like = "%" + t.toLowerCase().replace("%", "").replace("_", "").replaceAll("\\s+", "%") + "%";
+        MapSqlParameterSource p = new MapSqlParameterSource().addValue("exact", t).addValue("exactUpper", t.toUpperCase(java.util.Locale.ROOT));
+        List<String> words = new ArrayList<>();
+        for (String w : t.toLowerCase(java.util.Locale.ROOT).replace("&", " ").split("[^a-z0-9]+")) {
+            if (!w.isBlank() && !SEARCH_NOISE.contains(w) && !words.contains(w)) words.add(w);
+            if (words.size() == 8) break;
+        }
+        StringBuilder where = new StringBuilder();
+        for (int i = 0; i < words.size(); i++) {
+            String w = words.get(i);
+            if (i > 0) where.append(" AND ");
+            if (w.equals("idcw") || w.equals("dividend")) {
+                where.append("(lower(name) LIKE '%idcw%' OR lower(name) LIKE '%dividend%')");
+            } else {
+                where.append("lower(name) LIKE :w").append(i);
+                p.addValue("w" + i, "%" + w + "%");
+            }
+        }
+        String sql = "SELECT scheme_code, name, amc, category, isin_growth, isin_reinvest, nav, nav_date FROM mf_schemes "
+                + "WHERE scheme_code = :exact OR isin_growth = :exactUpper OR isin_reinvest = :exactUpper"
+                + (where.isEmpty() ? "" : " OR (" + where + ")")
+                + " ORDER BY COALESCE(scheme_code = :exact OR isin_growth = :exactUpper OR isin_reinvest = :exactUpper, false) DESC, (nav IS NOT NULL) DESC,"
+                + " (lower(name) LIKE '%direct%' AND lower(name) LIKE '%growth%') DESC, length(name), name LIMIT 25";
         List<Scheme> out = new ArrayList<>();
-        jdbc.query(SEARCH, new MapSqlParameterSource().addValue("exact", t).addValue("exactUpper", t.toUpperCase()).addValue("like", like),
-                rs -> {
-                    out.add(map(rs));
-                });
+        jdbc.query(sql, p, rs -> {
+            out.add(map(rs));
+        });
         return out;
     }
+
+    private static final java.util.Set<String> SEARCH_NOISE = java.util.Set.of("fund", "plan", "option", "the", "of", "scheme", "mf");
 
     public Optional<Scheme> byCode(String code) {
         if (code == null) return Optional.empty();
@@ -186,6 +217,42 @@ public class PriceService {
         return out.stream().findFirst();
     }
 
+    private static final java.util.Set<String> NAME_NOISE = java.util.Set.of("fund", "plan", "option", "scheme", "the", "of", "and", "mf",
+            "mutual", "series", "an", "open", "ended");
+
+    static java.util.Set<String> nameTokens(String name) {
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        if (name == null) return out;
+        String n = name.toLowerCase(java.util.Locale.ROOT).replace("&", " and ").replaceAll("[^a-z0-9 ]", " ")
+                .replace("dividend", "idcw").replace("payout", "idcw").replace("reinvestment", "idcw");
+        for (String t : n.split("\\s+")) if (!t.isBlank() && !NAME_NOISE.contains(t)) out.add(t);
+        return out;
+    }
+
+    /**
+     * Finds the AMFI scheme a fund's name refers to, only when there is no doubt: every word of the name must appear in
+     * the scheme's name and exactly one scheme may fit. Direct and Regular plans (and Growth and IDCW options) have
+     * different NAVs, so a name that doesn't say which is left for you to pick.
+     */
+    public Optional<Scheme> matchByName(String name) {
+        java.util.Set<String> want = nameTokens(name);
+        if (want.size() < 2) return Optional.empty();
+        List<Scheme> fits = new ArrayList<>();
+        for (Scheme s : search(String.join(" ", want))) {
+            java.util.Set<String> have = nameTokens(s.name());
+            if (have.containsAll(want)) fits.add(s);
+        }
+        boolean saysPlan = want.contains("direct") || want.contains("regular");
+        boolean saysOption = want.contains("growth") || want.contains("idcw");
+        if (!saysPlan || !saysOption) {
+            // without the plan and option the name fits several schemes, unless the fund only has one
+            return fits.size() == 1 ? Optional.of(fits.get(0)) : Optional.empty();
+        }
+        return fits.size() == 1 ? Optional.of(fits.get(0)) : fits.stream()
+                .filter(s -> nameTokens(s.name()).size() == want.size()).findFirst()
+                .filter(s -> fits.stream().filter(f -> nameTokens(f.name()).size() == want.size()).count() == 1);
+    }
+
     public boolean hasSchemeCache() {
         Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM (SELECT 1 FROM mf_schemes LIMIT 1) x", new MapSqlParameterSource(), Integer.class);
         return n != null && n > 0;
@@ -194,6 +261,11 @@ public class PriceService {
     private static Scheme map(java.sql.ResultSet rs) throws java.sql.SQLException {
         return new Scheme(rs.getString("scheme_code"), rs.getString("name"), rs.getString("amc"), rs.getString("category"),
                 rs.getString("isin_growth"), rs.getString("isin_reinvest"), rs.getBigDecimal("nav"), rs.getObject("nav_date", LocalDate.class));
+    }
+
+    static void link(Holding h, Scheme s) {
+        h.setSchemeCode(s.schemeCode());
+        if (h.getIsin() == null) h.setIsin(s.isinGrowth() != null ? s.isinGrowth() : s.isinReinvest());
     }
 
     private RefreshResult remember(RefreshResult r) {

@@ -40,8 +40,8 @@ export const BUCKET_LABEL: Record<AllocationBucket, string> = {
   EQUITY: "Equity", DEBT: "Debt", HYBRID: "Hybrid", GOLD: "Gold", REAL_ESTATE: "Real estate", CASH: "Cash & bank", OTHER: "Other",
 };
 
-function SchemeSearch({ onPick }: { onPick: (s: MfScheme) => void }) {
-  const [q, setQ] = useState("");
+function SchemeSearch({ onPick, initialQuery = "", autoFocus }: { onPick: (s: MfScheme) => void; initialQuery?: string; autoFocus?: boolean }) {
+  const [q, setQ] = useState(initialQuery);
   const [results, setResults] = useState<MfScheme[] | null>(null);
   useEffect(() => {
     if (q.trim().length < 3) {
@@ -57,7 +57,7 @@ function SchemeSearch({ onPick }: { onPick: (s: MfScheme) => void }) {
     <div>
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
-        <Input className="pl-9" placeholder="Search fund name, e.g. parag parikh flexi direct" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search mutual funds" />
+        <Input className="pl-9" placeholder="Search fund name, e.g. parag parikh flexi direct" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search mutual funds" autoFocus={autoFocus} />
       </div>
       {results && (
         <ul className="mt-2 max-h-52 overflow-y-auto rounded-2xl border border-line">
@@ -182,9 +182,11 @@ export function HoldingDialog({ holding, open, onOpenChange }: { holding?: Holdi
           </div>
         ) : (
           <div className="space-y-4">
-            {cls === "MUTUAL_FUND" && !holding && (
-              <Field label="Find your fund">
-                <SchemeSearch onPick={(s) => { setPicked(s); set({ name: s.name, schemeCode: s.schemeCode, isin: s.isinGrowth ?? s.isinReinvest ?? "" }); }} />
+            {cls === "MUTUAL_FUND" && (
+              <Field label={holding ? (holding.schemeCode ? "Linked AMFI scheme (search to change)" : "Which fund is this? Pick it to get daily NAVs") : "Find your fund"}>
+                <SchemeSearch initialQuery={holding && !holding.schemeCode ? holding.name : ""}
+                  onPick={(s) => { setPicked(s); set({ name: s.name, schemeCode: s.schemeCode, isin: s.isinGrowth ?? s.isinReinvest ?? "" }); }} />
+                {holding?.schemeCode && !picked && <p className="mt-1 text-xs text-ink-3">AMFI scheme {holding.schemeCode}</p>}
               </Field>
             )}
             {cls && LISTED.includes(cls) && !holding && (
@@ -288,16 +290,32 @@ export function UpdateValueDialog({ holding, open, onOpenChange }: { holding: Ho
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<LatestPrice | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [needsLink, setNeedsLink] = useState(false);
 
-  async function fetchLatest() {
+  async function linkAndFetch(s: MfScheme) {
+    setBusy(true);
+    setProblem(null);
+    try {
+      await api.put(`/networth/holdings/${holding.id}`, { schemeCode: s.schemeCode, isin: s.isinGrowth ?? s.isinReinvest ?? null });
+      setNeedsLink(false);
+      setBusy(false);
+      await fetchLatest(holding.currentPrice); // compare with the price before linking, not the NAV linking just applied
+    } catch (e) {
+      setProblem(err(e));
+      setBusy(false);
+    }
+  }
+
+  async function fetchLatest(priceBefore?: number | null) {
     setBusy(true);
     setProblem(null);
     try {
       const r = await api.post<LatestPrice>(`/networth/holdings/${holding.id}/latest-price`);
-      setResult(r);
+      setResult(priceBefore !== undefined ? { ...r, previousPrice: priceBefore } : r);
       invalidate();
     } catch (e) {
-      setProblem(err(e));
+      if (e instanceof ApiError && e.code === "FUND_NOT_LINKED") setNeedsLink(true);
+      else setProblem(err(e));
     } finally {
       setBusy(false);
     }
@@ -333,9 +351,15 @@ export function UpdateValueDialog({ holding, open, onOpenChange }: { holding: Ho
                 )}
                 <Button className="mt-4 w-full" onClick={() => onOpenChange(false)}>Done</Button>
               </div>
+            ) : needsLink ? (
+              <div className="space-y-2">
+                <p className="text-sm">Which fund is this? Pick it from AMFI&apos;s list once and Arth will update its NAV every day.</p>
+                <SchemeSearch initialQuery={holding.name} autoFocus onPick={linkAndFetch} />
+                <p className="text-xs text-ink-3">Choose the right plan (Direct or Regular) and option (Growth or IDCW): their NAVs differ.</p>
+              </div>
             ) : (
               <>
-                <Button className="w-full" disabled={busy} onClick={fetchLatest}>
+                <Button className="w-full" disabled={busy} onClick={() => fetchLatest()}>
                   <RefreshCw className={busy ? "animate-spin" : undefined} /> {busy ? "Checking…" : `Get latest ${priceWord}`}
                 </Button>
                 <p className="text-xs text-ink-3">
