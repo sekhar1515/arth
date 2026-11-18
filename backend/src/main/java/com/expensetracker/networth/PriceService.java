@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class PriceService {
 
     public record Scheme(String schemeCode, String name, String amc, String category, String isinGrowth, String isinReinvest,
-                         BigDecimal nav, LocalDate navDate) {
+                         BigDecimal nav, LocalDate navDate, BigDecimal prevNav, LocalDate prevNavDate) {
     }
 
     public record RefreshResult(boolean ok, int schemesLoaded, int holdingsUpdated, LocalDate latestNavDate, String message, Instant at) {
@@ -47,16 +47,18 @@ public class PriceService {
             ON CONFLICT (scheme_code) DO UPDATE SET
               isin_growth = EXCLUDED.isin_growth, isin_reinvest = EXCLUDED.isin_reinvest, name = EXCLUDED.name,
               amc = COALESCE(EXCLUDED.amc, mf_schemes.amc), category = COALESCE(EXCLUDED.category, mf_schemes.category),
+              prev_nav = CASE WHEN EXCLUDED.nav_date > mf_schemes.nav_date THEN mf_schemes.nav ELSE mf_schemes.prev_nav END,
+              prev_nav_date = CASE WHEN EXCLUDED.nav_date > mf_schemes.nav_date THEN mf_schemes.nav_date ELSE mf_schemes.prev_nav_date END,
               nav = COALESCE(EXCLUDED.nav, mf_schemes.nav), nav_date = COALESCE(EXCLUDED.nav_date, mf_schemes.nav_date), updated_at = now()
             """;
     static final String SEARCH = """
-            SELECT scheme_code, name, amc, category, isin_growth, isin_reinvest, nav, nav_date FROM mf_schemes
+            SELECT scheme_code, name, amc, category, isin_growth, isin_reinvest, nav, nav_date, prev_nav, prev_nav_date FROM mf_schemes
             WHERE scheme_code = :exact OR isin_growth = :exactUpper OR isin_reinvest = :exactUpper OR lower(name) LIKE :like
             ORDER BY (lower(name) LIKE '%direct%' AND lower(name) LIKE '%growth%') DESC, name
             LIMIT 25
             """;
-    static final String BY_CODES = "SELECT scheme_code, name, amc, category, isin_growth, isin_reinvest, nav, nav_date FROM mf_schemes WHERE scheme_code IN (:codes)";
-    static final String BY_ISIN = "SELECT scheme_code, name, amc, category, isin_growth, isin_reinvest, nav, nav_date FROM mf_schemes WHERE isin_growth = :isin OR isin_reinvest = :isin LIMIT 1";
+    static final String BY_CODES = "SELECT scheme_code, name, amc, category, isin_growth, isin_reinvest, nav, nav_date, prev_nav, prev_nav_date FROM mf_schemes WHERE scheme_code IN (:codes)";
+    static final String BY_ISIN = "SELECT scheme_code, name, amc, category, isin_growth, isin_reinvest, nav, nav_date, prev_nav, prev_nav_date FROM mf_schemes WHERE isin_growth = :isin OR isin_reinvest = :isin LIMIT 1";
 
     private final NamedParameterJdbcTemplate jdbc;
     private final HoldingRepository holdings;
@@ -185,7 +187,7 @@ public class PriceService {
                 p.addValue("w" + i, "%" + w + "%");
             }
         }
-        String sql = "SELECT scheme_code, name, amc, category, isin_growth, isin_reinvest, nav, nav_date FROM mf_schemes "
+        String sql = "SELECT scheme_code, name, amc, category, isin_growth, isin_reinvest, nav, nav_date, prev_nav, prev_nav_date FROM mf_schemes "
                 + "WHERE scheme_code = :exact OR isin_growth = :exactUpper OR isin_reinvest = :exactUpper"
                 + (where.isEmpty() ? "" : " OR (" + where + ")")
                 + " ORDER BY COALESCE(scheme_code = :exact OR isin_growth = :exactUpper OR isin_reinvest = :exactUpper, false) DESC, (nav IS NOT NULL) DESC,"
@@ -198,6 +200,23 @@ public class PriceService {
     }
 
     private static final java.util.Set<String> SEARCH_NOISE = java.util.Set.of("fund", "plan", "option", "the", "of", "scheme", "mf");
+
+    /** Cached schemes by code, for pricing many holdings at once. */
+    public Map<String, Scheme> byCodes(java.util.Collection<String> codes) {
+        Map<String, Scheme> out = new HashMap<>();
+        if (codes.isEmpty()) return out;
+        jdbc.query(BY_CODES, new MapSqlParameterSource("codes", List.copyOf(codes)), rs -> {
+            Scheme sc = map(rs);
+            out.put(sc.schemeCode(), sc);
+        });
+        return out;
+    }
+
+    /** When the fund list was last loaded from AMFI. */
+    public Optional<Instant> lastLoadedAt() {
+        return Optional.ofNullable(jdbc.queryForObject("SELECT max(updated_at) FROM mf_schemes", new MapSqlParameterSource(), java.sql.Timestamp.class))
+                .map(java.sql.Timestamp::toInstant);
+    }
 
     public Optional<Scheme> byCode(String code) {
         if (code == null) return Optional.empty();
@@ -260,7 +279,8 @@ public class PriceService {
 
     private static Scheme map(java.sql.ResultSet rs) throws java.sql.SQLException {
         return new Scheme(rs.getString("scheme_code"), rs.getString("name"), rs.getString("amc"), rs.getString("category"),
-                rs.getString("isin_growth"), rs.getString("isin_reinvest"), rs.getBigDecimal("nav"), rs.getObject("nav_date", LocalDate.class));
+                rs.getString("isin_growth"), rs.getString("isin_reinvest"), rs.getBigDecimal("nav"), rs.getObject("nav_date", LocalDate.class),
+                rs.getBigDecimal("prev_nav"), rs.getObject("prev_nav_date", LocalDate.class));
     }
 
     static void link(Holding h, Scheme s) {

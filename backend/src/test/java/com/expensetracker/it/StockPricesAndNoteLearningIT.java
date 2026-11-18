@@ -343,4 +343,38 @@ class StockPricesAndNoteLearningIT extends IntegrationTestBase {
         assertFalse(inst.get("transactionId").isNull());
         assertEquals(1, getJson(s, "/api/transactions?accountId=" + bank + "&size=10").get("totalElements").asInt(), "linked to the statement line");
     }
+
+    @Test
+    void dayChangeComesFromThePreviousNavAndClose() throws Exception {
+        Session s = register();
+        java.time.LocalDate today = java.time.LocalDate.now(com.expensetracker.common.TimeConfig.IST);
+        // two NAV loads on consecutive days: the second keeps the first as the previous NAV
+        priceService.loadNavFile(navFileDated(today.minusDays(1)).replace("250.0000", "240.0000"));
+        priceService.loadNavFile(navFileDated(today));
+        postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "HDFC Nifty 50", "schemeCode", "119063", "units", "100"), 201);
+        // a stock priced from the bhavcopy: close 1145.10, previous close 1141.50
+        String csv = com.expensetracker.networth.BhavcopyParserTest.HEADER
+                + "2026-11-16,2026-11-16,CM,NSE,STK,1594,INE009A01021,INFY,EQ,,,,,INFOSYS LIMITED,1,1,1,1145.10,1,1141.50,,1,,,1,1,1,F1,1,,,,,\n";
+        call(s, multipart("/api/networth/prices/bhavcopy").file(new MockMultipartFile("file", "b.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8))), 200);
+        postJson(s, "/api/networth/holdings", Map.of("assetClass", "STOCK", "name", "Infosys", "isin", "INE009A01021", "units", "10"), 201);
+
+        JsonNode nw = getJson(s, "/api/networth");
+        // fund: 100 × (250 − 240) = 1000; stock: 10 × (1145.10 − 1141.50) = 36.00
+        assertEquals(0, nw.get("holdingsDayChange").decimalValue().compareTo(new java.math.BigDecimal("1036.00")));
+        for (JsonNode g : nw.get("assetGroups")) {
+            for (JsonNode i : g.get("items")) {
+                if (i.get("name").asText().startsWith("HDFC")) {
+                    assertEquals(0, i.get("dayChange").decimalValue().compareTo(new java.math.BigDecimal("1000.00")));
+                    assertEquals(0, i.get("dayChangePct").decimalValue().compareTo(new java.math.BigDecimal("4.17")));
+                    assertEquals(today.toString(), i.get("dayChangeOn").asText());
+                }
+                if (i.get("name").asText().equals("Infosys")) assertEquals(0, i.get("dayChange").decimalValue().compareTo(new java.math.BigDecimal("36.00")));
+            }
+        }
+        // a price typed by hand isn't the official one, so no day change is claimed for it
+        JsonNode typed = postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "Typed", "schemeCode", "119063", "folio", "F2", "units", "1", "currentPrice", "99"), 201);
+        for (JsonNode g : getJson(s, "/api/networth").get("assetGroups")) {
+            for (JsonNode i : g.get("items")) if (i.get("id").asText().equals(typed.get("id").asText())) assertTrue(i.get("dayChange").isNull());
+        }
+    }
 }

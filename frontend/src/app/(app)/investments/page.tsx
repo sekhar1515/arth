@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/app-shell";
 import { canFetchPrice, HoldingDialog, ImportHoldingsDialog, UpdateValueDialog } from "@/components/finance/networth-dialogs";
 import { InstallmentLine, PfDialog, planKindFor, PlanDialog, planSummary } from "@/components/finance/plan-dialogs";
-import { Gain, GroupCard, type ItemAction } from "@/components/finance/wealth-parts";
+import { DayChange, Gain, GroupCard, type ItemAction } from "@/components/finance/wealth-parts";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm";
 import { Menu, MenuItem } from "@/components/ui/menu";
@@ -132,6 +132,11 @@ export default function InvestmentsPage() {
               <p className="text-sm text-ink-2">Invested value today</p>
               <p className="num mt-1 text-3xl font-semibold tracking-tight">{inr(s.holdingsValue)}</p>
               <p className="mt-1 text-xs text-ink-3">You put in {inr(s.investedInHoldings)} <Gain value={s.holdingsGain} pct={s.holdingsGainPct} className="ml-1" /></p>
+              {s.holdingsDayChange != null ? (
+                <p className="mt-2 flex items-center gap-2 text-xs text-ink-2">Latest day <DayChange value={s.holdingsDayChange} pct={s.holdingsDayChangePct} /></p>
+              ) : (
+                <p className="mt-2 text-xs text-ink-3">The day&apos;s change shows once the next NAV/close is loaded.</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3 sm:col-span-2 sm:grid-cols-4">
               <QuickAdd icon={<TrendingUp />} label="Fund or stock" onClick={() => setDialog("asset")} />

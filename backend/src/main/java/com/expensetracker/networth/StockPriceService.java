@@ -99,9 +99,39 @@ public class StockPriceService {
     }
 
     /** Bhavcopies appear around 6–7 pm IST on trading days; retry late at night in case they were delayed. */
-    @Scheduled(cron = "0 5 18-23 * * MON-FRI", zone = "Asia/Kolkata")
+    /**
+     * Once a day after the 3:45 pm close: checks from 3:45 pm and then hourly until the exchanges publish the day's
+     * closing file (usually 6–7 pm). Once that close is loaded, the later checks do nothing.
+     */
+    @Scheduled(cron = "0 45 15 * * MON-FRI", zone = "Asia/Kolkata")
+    @Scheduled(cron = "0 5 17-23 * * MON-FRI", zone = "Asia/Kolkata")
     public void scheduledRefresh() {
-        if (scheduleEnabled) refresh();
+        if (!scheduleEnabled) return;
+        LocalDate have = latestDate();
+        if (have != null && !have.isBefore(TimeConfig.today(clock))) return; // today's close is already in
+        refresh();
+    }
+
+    /** The newest closing date Arth has. */
+    public LocalDate latestDate() {
+        return jdbc.queryForObject("SELECT max(price_date) FROM security_prices", new MapSqlParameterSource(), LocalDate.class);
+    }
+
+    /** When new closing prices were last loaded. */
+    public Optional<Instant> lastLoadedAt() {
+        return Optional.ofNullable(jdbc.queryForObject("SELECT max(updated_at) FROM security_prices", new MapSqlParameterSource(), java.sql.Timestamp.class))
+                .map(java.sql.Timestamp::toInstant);
+    }
+
+    /** Cached closes by ISIN, for pricing many holdings at once. */
+    public Map<String, Security> byIsins(java.util.Collection<String> isins) {
+        Map<String, Security> out = new HashMap<>();
+        if (isins.isEmpty()) return out;
+        jdbc.query("SELECT " + COLUMNS + " FROM security_prices WHERE isin IN (:isins)", new MapSqlParameterSource("isins", List.copyOf(isins)), rs -> {
+            Security s = map(rs);
+            out.put(s.isin(), s);
+        });
+        return out;
     }
 
     /** The last refresh since start-up, or else what the cached prices say (so a restart doesn't hide their date). */
@@ -116,11 +146,16 @@ public class StockPriceService {
     public RefreshResult refresh() {
         List<BhavcopyParser.Quote> quotes = new ArrayList<>();
         List<String> problems = new ArrayList<>();
+        LocalDate have = latestDate();
         // BSE first so NSE prices for the same day replace them
-        Optional<List<BhavcopyParser.Quote>> bse = latest(bseUrl, false, problems, "BSE");
+        Optional<List<BhavcopyParser.Quote>> bse = latest(bseUrl, false, problems, "BSE", have);
         bse.ifPresent(quotes::addAll);
-        Optional<List<BhavcopyParser.Quote>> nse = latest(nseUrl, true, problems, "NSE");
+        Optional<List<BhavcopyParser.Quote>> nse = latest(nseUrl, true, problems, "NSE", have);
         nse.ifPresent(quotes::addAll);
+        if (quotes.isEmpty() && have != null && problems.stream().allMatch(p -> p.contains("no newer file"))) {
+            // nothing newer published yet: not a failure, and nothing was re-downloaded
+            return remember(new RefreshResult(true, 0, 0, have, "No newer closing prices yet; still the " + InrDates.shortDate(have) + " close.", Instant.now()));
+        }
         if (quotes.isEmpty()) {
             return remember(new RefreshResult(false, 0, 0, null,
                     "Couldn't download exchange prices (" + String.join("; ", problems) + "). Prices will retry this evening.", Instant.now()));
@@ -235,10 +270,15 @@ public class StockPriceService {
         return s;
     }
 
-    private Optional<List<BhavcopyParser.Quote>> latest(String urlPattern, boolean zipped, List<String> problems, String exchange) {
+    /** The newest file after {@code have}; never re-downloads a day Arth already has. */
+    private Optional<List<BhavcopyParser.Quote>> latest(String urlPattern, boolean zipped, List<String> problems, String exchange, LocalDate have) {
         LocalDate day = TimeConfig.today(clock);
         String lastProblem = null;
         for (int i = 0; i < 8; i++, day = day.minusDays(1)) {
+            if (have != null && !day.isAfter(have)) {
+                if (lastProblem == null) lastProblem = exchange + ": no newer file than " + have;
+                break;
+            }
             if (day.getDayOfWeek() == DayOfWeek.SATURDAY || day.getDayOfWeek() == DayOfWeek.SUNDAY) continue;
             String url = String.format(urlPattern, day.format(YMD));
             try {

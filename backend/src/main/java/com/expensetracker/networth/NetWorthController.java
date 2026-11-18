@@ -101,9 +101,7 @@ public class NetWorthController {
     @PostMapping("/holdings/{id}/latest-price")
     public HoldingService.LatestPrice latestPrice(@PathVariable UUID id) {
         UUID userId = CurrentUser.id();
-        var h = holdings.get(userId, id);
-        boolean fund = h.assetClass() == AssetClass.MUTUAL_FUND;
-        refresher.ensureFresh(fund, !fund && StockPriceService.LISTED.contains(h.assetClass()));
+        // no download here: applies the NAV/close Arth already loaded (refreshed automatically each day)
         var result = holdings.applyLatestPrice(userId, id);
         netWorth.snapshot(userId);
         return result;
@@ -285,20 +283,34 @@ public class NetWorthController {
     private PriceService.RefreshResult cachedFunds() {
         int n = prices.repriceFundHoldings();
         java.time.LocalDate d = refresher.latestNavDate();
-        return new PriceService.RefreshResult(true, 0, n, d, d == null ? "Fund NAVs aren't loaded yet; they arrive with the next AMFI update."
-                : "Fund NAVs shown are for " + InrDates.shortDate(d) + ". New NAVs come once AMFI publishes them (usually by 10 pm), and Arth picks them up automatically.",
-                java.time.Instant.now());
+        String loaded = prices.lastLoadedAt().map(NetWorthController::when).orElse(null);
+        String msg;
+        if (d == null) msg = "Fund NAVs aren't loaded yet; they arrive with the next AMFI update.";
+        else if (!refresher.fundsBehind()) msg = "Already refreshed: the " + InrDates.shortDate(d) + " NAVs" + (loaded == null ? "" : " were loaded " + loaded)
+                + ". New NAVs come once AMFI publishes them (usually by 10 pm) and Arth loads them automatically.";
+        else msg = "Fund NAVs shown are for " + InrDates.shortDate(d) + ". Newer NAVs are being published; Arth loads them automatically.";
+        return new PriceService.RefreshResult(true, 0, n, d, msg, java.time.Instant.now());
+    }
+
+    /** "today at 10:12 pm" / "on 17 Nov at 6:40 pm", in IST. */
+    private static String when(java.time.Instant at) {
+        java.time.ZonedDateTime t = at.atZone(com.expensetracker.common.TimeConfig.IST);
+        String time = t.format(java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.ENGLISH)).toLowerCase(java.util.Locale.ROOT);
+        java.time.LocalDate today = java.time.LocalDate.now(com.expensetracker.common.TimeConfig.IST);
+        String day = t.toLocalDate().equals(today) ? "today" : t.toLocalDate().equals(today.minusDays(1)) ? "yesterday" : "on " + InrDates.shortDate(t.toLocalDate());
+        return day + " at " + time;
     }
 
     private StockPriceService.RefreshResult cachedStocks() {
         int n = stockPrices.repriceHoldings();
         java.time.LocalDate d = refresher.latestCloseDate();
         java.time.ZonedDateTime ist = java.time.ZonedDateTime.now(com.expensetracker.common.TimeConfig.IST);
-        boolean beforeClose = ist.toLocalTime().isBefore(RefreshWindows.CLOSE);
-        String msg = d == null ? "Stock prices aren't loaded yet; they arrive after the next market close."
-                : d.equals(ist.toLocalDate()) ? "Stock prices shown are today's close (" + InrDates.shortDate(d) + ")."
-                : beforeClose ? "Stock prices shown are the " + InrDates.shortDate(d) + " close. They refresh after 3:45 pm on working days."
-                : "Stock prices shown are the " + InrDates.shortDate(d) + " close. Today's close is published by the exchanges in the evening, and Arth picks it up automatically.";
+        String loaded = stockPrices.lastLoadedAt().map(NetWorthController::when).orElse(null);
+        String msg;
+        if (d == null) msg = "Stock prices aren't loaded yet; they arrive after the next market close.";
+        else if (d.equals(ist.toLocalDate())) msg = "Already refreshed: today's closing prices" + (loaded == null ? "" : " were loaded " + loaded) + ".";
+        else msg = "Already refreshed: the " + InrDates.shortDate(d) + " closing prices" + (loaded == null ? "" : " were loaded " + loaded)
+                + ". Stock prices update once a day after the 3:45 pm close on working days, automatically.";
         return new StockPriceService.RefreshResult(true, 0, n, d, msg, java.time.Instant.now());
     }
 

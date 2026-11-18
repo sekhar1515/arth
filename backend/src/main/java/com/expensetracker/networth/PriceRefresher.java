@@ -42,9 +42,6 @@ public class PriceRefresher {
     private final Clock clock;
     private final boolean enabled;
     private final AtomicReference<Instant> lastAttempt = new AtomicReference<>(Instant.EPOCH);
-    private Instant lastFundSync = Instant.EPOCH;
-    private Instant lastStockSync = Instant.EPOCH;
-    static final Duration SYNC_GAP = Duration.ofMinutes(5);
     private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "price-refresh");
         t.setDaemon(true);
@@ -91,29 +88,6 @@ public class PriceRefresher {
                 log.warn("Background price refresh failed: {}", e.toString());
             }
         });
-    }
-
-    /**
-     * For "Get latest price" on one holding: if the cached NAVs or closes are behind, refresh them now and wait
-     * (a few seconds). Waits for a refresh already running; won't re-download more than once every 5 minutes.
-     */
-    public synchronized void ensureFresh(boolean wantFunds, boolean wantStocks) {
-        if (!enabled) return;
-        Instant now = clock.instant();
-        try {
-            if (wantFunds && lastFundSync.plus(SYNC_GAP).isBefore(now)
-                    && isBehind(latest("SELECT max(nav_date) FROM mf_schemes"), expectedDate(now, NAVS_OUT))) {
-                lastFundSync = now;
-                funds.refreshMutualFunds();
-            }
-            if (wantStocks && lastStockSync.plus(SYNC_GAP).isBefore(now)
-                    && isBehind(latest("SELECT max(price_date) FROM security_prices"), expectedDate(now, CLOSES_OUT))) {
-                lastStockSync = now;
-                stocks.refresh();
-            }
-        } catch (RuntimeException e) {
-            log.warn("Price refresh for a holding failed: {}", e.toString());
-        }
     }
 
     public LocalDate latestNavDate() {

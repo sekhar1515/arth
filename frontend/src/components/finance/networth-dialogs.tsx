@@ -347,7 +347,7 @@ export function UpdateValueDialog({ holding, open, onOpenChange }: { holding: Ho
                   <p className="mt-1 text-xs text-ink-3">{priceWord} was ₹{result.previousPrice}; now ₹{result.price}</p>
                 )}
                 {result.previousPrice != null && Number(result.previousPrice) === Number(result.price) && (
-                  <p className="mt-1 text-xs text-ink-3">Already the latest. {fund ? "Funds publish today's NAV late tonight, so check again tomorrow." : "Today's closing price comes after the market closes, so check again after 3:45 pm."}</p>
+                  <p className="mt-1 text-xs text-ink-3">Already refreshed. {fund ? "New NAVs come once AMFI publishes them (usually by 10 pm), and Arth loads them automatically." : "Stock prices update once a day after the 3:45 pm close, automatically."}</p>
                 )}
                 <Button className="mt-4 w-full" onClick={() => onOpenChange(false)}>Done</Button>
               </div>
@@ -363,7 +363,7 @@ export function UpdateValueDialog({ holding, open, onOpenChange }: { holding: Ho
                   <RefreshCw className={busy ? "animate-spin" : undefined} /> {busy ? "Checking…" : `Get latest ${priceWord}`}
                 </Button>
                 <p className="text-xs text-ink-3">
-                  {fund ? "From AMFI. Funds publish one NAV per working day, in the evening." : "From NSE/BSE. The closing price after each trading day."} This also happens automatically every evening.
+                  {fund ? "Uses the latest NAV Arth has loaded from AMFI. New NAVs are loaded automatically every evening." : "Uses the latest NSE/BSE close Arth has loaded. Stock prices update automatically once a day after the 3:45 pm close."}
                 </p>
               </>
             )}

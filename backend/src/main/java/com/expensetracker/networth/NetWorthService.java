@@ -31,11 +31,17 @@ import java.util.UUID;
 @Service
 public class NetWorthService {
 
+    /** {@code dayChange}: how much the value moved on the latest NAV/close day ({@code dayChangeOn}), from the official prices. */
     public record Item(String kind, UUID id, String name, String detail, BigDecimal value, BigDecimal invested, BigDecimal gain,
-                       BigDecimal gainPct, String source, boolean estimated, String asOf) {
+                       BigDecimal gainPct, String source, boolean estimated, String asOf, BigDecimal dayChange, BigDecimal dayChangePct,
+                       LocalDate dayChangeOn) {
     }
 
-    public record Group(String key, String label, BigDecimal value, BigDecimal invested, BigDecimal gain, BigDecimal gainPct, List<Item> items) {
+    public record Group(String key, String label, BigDecimal value, BigDecimal invested, BigDecimal gain, BigDecimal gainPct, List<Item> items,
+                        BigDecimal dayChange) {
+    }
+
+    private record DayMove(BigDecimal change, BigDecimal base, LocalDate on) {
     }
 
     public record AllocationSlice(Allocation bucket, BigDecimal value, BigDecimal share) {
@@ -47,7 +53,7 @@ public class NetWorthService {
     public record Summary(BigDecimal netWorth, BigDecimal assets, BigDecimal liabilities, BigDecimal investedInHoldings,
                           BigDecimal holdingsValue, BigDecimal holdingsGain, BigDecimal holdingsGainPct, List<Group> assetGroups,
                           List<Group> liabilityGroups, List<AllocationSlice> allocation, Change change30d, Change changeYtd,
-                          int estimatedCount, String pricesNote) {
+                          int estimatedCount, String pricesNote, BigDecimal holdingsDayChange, BigDecimal holdingsDayChangePct) {
     }
 
     public record Point(LocalDate date, BigDecimal assets, BigDecimal liabilities, BigDecimal netWorth) {
@@ -90,9 +96,9 @@ public class NetWorthService {
             if (a.archived()) continue;
             String source = "Opening balance + imported transactions";
             if (a.type() == AccountType.CREDIT_CARD && a.balance().signum() < 0) {
-                cardItems.add(new Item("ACCOUNT", a.id(), a.name(), "Credit card outstanding", a.balance().negate(), null, null, null, source, false, null));
+                cardItems.add(new Item("ACCOUNT", a.id(), a.name(), "Credit card outstanding", a.balance().negate(), null, null, null, source, false, null, null, null, null));
             } else {
-                cashItems.add(new Item("ACCOUNT", a.id(), a.name(), label(a.type()), a.balance(), null, null, null, source, false, null));
+                cashItems.add(new Item("ACCOUNT", a.id(), a.name(), label(a.type()), a.balance(), null, null, null, source, false, null, null, null, null));
             }
         }
 
@@ -100,10 +106,21 @@ public class NetWorthService {
         Map<Allocation, BigDecimal> alloc = new EnumMap<>(Allocation.class);
         BigDecimal holdingsValue = BigDecimal.ZERO, invested = BigDecimal.ZERO, investedWithKnownCost = BigDecimal.ZERO, valueWithKnownCost = BigDecimal.ZERO;
         int estimated = 0;
-        for (Holding h : holdings.findByUserIdAndArchivedFalse(userId)) {
+        List<Holding> mine = holdings.findByUserIdAndArchivedFalse(userId);
+        Map<String, PriceService.Scheme> schemes = prices.byCodes(mine.stream().map(Holding::getSchemeCode).filter(java.util.Objects::nonNull).distinct().toList());
+        Map<String, StockPriceService.Security> closes = stockPrices.byIsins(mine.stream().map(Holding::getIsin).filter(java.util.Objects::nonNull).distinct().toList());
+        BigDecimal dayChange = null, dayBase = BigDecimal.ZERO;
+        for (Holding h : mine) {
             HoldingService.HoldingDto d = holdingService.toDto(h, today);
+            DayMove move = dayMove(h, schemes, closes);
+            BigDecimal movePct = move == null || move.base().signum() == 0 ? null : move.change().multiply(BigDecimal.valueOf(100)).divide(move.base(), 2, RoundingMode.HALF_UP);
+            if (move != null) {
+                dayChange = (dayChange == null ? BigDecimal.ZERO : dayChange).add(move.change());
+                dayBase = dayBase.add(move.base());
+            }
             byClass.computeIfAbsent(h.getAssetClass(), k -> new ArrayList<>()).add(new Item("HOLDING", h.getId(), h.getName(), detail(d), d.value(),
-                    d.investedAmount(), d.gain(), d.gainPct(), sourceLabel(d), d.estimated(), d.priceAsOf() == null ? null : d.priceAsOf().toString()));
+                    d.investedAmount(), d.gain(), d.gainPct(), sourceLabel(d), d.estimated(), d.priceAsOf() == null ? null : d.priceAsOf().toString(),
+                    move == null ? null : move.change(), movePct, move == null ? null : move.on()));
             holdingsValue = holdingsValue.add(d.value());
             if (d.investedAmount() != null) {
                 invested = invested.add(d.investedAmount());
@@ -125,7 +142,7 @@ public class NetWorthService {
             String detail = (l.getLender() == null ? "" : l.getLender() + ", ") + (l.getInterestRate() == null ? "" : l.getInterestRate().stripTrailingZeros().toPlainString() + "%")
                     + (l.getEmi() == null ? "" : ", EMI " + com.expensetracker.analytics.InrFormat.format(l.getEmi()));
             loanItems.add(new Item("LIABILITY", l.getId(), l.getName(), detail.replaceAll("^, |, $", ""), l.getOutstanding(), null, null, null,
-                    "Outstanding you entered on " + l.getAsOf(), false, l.getAsOf().toString()));
+                    "Outstanding you entered on " + l.getAsOf(), false, l.getAsOf().toString(), null, null, null));
         }
         List<Group> liabilityGroups = new ArrayList<>();
         if (!cardItems.isEmpty()) liabilityGroups.add(group("CARDS", "Credit cards", cardItems));
@@ -152,7 +169,37 @@ public class NetWorthService {
 
         return new Summary(net, assets, owed, invested.setScale(2, RoundingMode.HALF_UP), holdingsValue.setScale(2, RoundingMode.HALF_UP), gain, gainPct,
                 assetGroups, liabilityGroups, allocation, change(userId, today.minusDays(30), net), change(userId, LocalDate.of(today.getYear(), 1, 1), net),
-                estimated, pricesNote);
+                estimated, pricesNote, dayChange == null ? null : dayChange.setScale(2, RoundingMode.HALF_UP),
+                dayChange == null || dayBase.signum() == 0 ? null : dayChange.multiply(BigDecimal.valueOf(100)).divide(dayBase, 2, RoundingMode.HALF_UP));
+    }
+
+    /**
+     * The move on the latest official day: units × (latest NAV − previous NAV) for a fund priced from AMFI, or
+     * units × (close − previous close) for a stock/ETF priced from NSE/BSE. Null when the holding isn't on that price
+     * (e.g. a broker-file or typed price) or the previous one isn't known yet.
+     */
+    private static DayMove dayMove(Holding h, Map<String, PriceService.Scheme> schemes, Map<String, StockPriceService.Security> closes) {
+        if (h.getValuationMethod() != ValuationMethod.MARKET_PRICE || h.getUnits() == null || h.getCurrentPrice() == null) return null;
+        BigDecimal now = null, before = null;
+        LocalDate on = null;
+        if (h.getPriceSource() == Holding.PriceSource.AMFI && h.getSchemeCode() != null) {
+            PriceService.Scheme s = schemes.get(h.getSchemeCode());
+            if (s != null && s.nav() != null && s.prevNav() != null && s.nav().compareTo(h.getCurrentPrice()) == 0) {
+                now = s.nav();
+                before = s.prevNav();
+                on = s.navDate();
+            }
+        } else if (h.getPriceSource() == Holding.PriceSource.EXCHANGE && h.getIsin() != null) {
+            StockPriceService.Security s = closes.get(h.getIsin().toUpperCase(java.util.Locale.ROOT));
+            if (s != null && s.close() != null && s.prevClose() != null && s.close().compareTo(h.getCurrentPrice()) == 0) {
+                now = s.close();
+                before = s.prevClose();
+                on = s.priceDate();
+            }
+        }
+        if (now == null || before.signum() <= 0) return null;
+        return new DayMove(h.getUnits().multiply(now.subtract(before)).setScale(2, RoundingMode.HALF_UP),
+                h.getUnits().multiply(before), on);
     }
 
     /** Records today's net worth (one row per day, replaced on each change). */
@@ -209,7 +256,9 @@ public class NetWorthService {
         BigDecimal invested = withCost.isEmpty() ? null : withCost.stream().map(Item::invested).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal gain = invested == null ? null : withCost.stream().map(Item::value).reduce(BigDecimal.ZERO, BigDecimal::add).subtract(invested).setScale(2, RoundingMode.HALF_UP);
         BigDecimal pct = invested != null && invested.signum() > 0 ? gain.multiply(BigDecimal.valueOf(100)).divide(invested, 2, RoundingMode.HALF_UP) : null;
-        return new Group(key, label, value, invested, gain, pct, items);
+        List<Item> moved = items.stream().filter(i -> i.dayChange() != null).toList();
+        BigDecimal day = moved.isEmpty() ? null : moved.stream().map(Item::dayChange).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new Group(key, label, value, invested, gain, pct, items, day);
     }
 
     private static String label(AccountType t) {

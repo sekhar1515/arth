@@ -24,6 +24,19 @@ export function Gain({ value, pct, className }: { value: number | null; pct: num
   );
 }
 
+/** "1D +₹1,240 (+0.5%)": the move on the latest NAV/close day. */
+export function DayChange({ value, pct, on, className }: { value: number | null; pct?: number | null; on?: string | null; className?: string }) {
+  if (value === null || value === undefined) return null;
+  const up = value >= 0;
+  return (
+    <span className={cn("num inline-flex items-center gap-1 text-[11px] font-medium", up ? "text-in" : "text-out", className)}
+      title={on ? `Change on ${new Date(on + "T12:00:00+05:30").toLocaleDateString("en-IN", { day: "numeric", month: "short" })} vs the previous NAV/close` : undefined}>
+      <span className="rounded bg-surface-2 px-1 text-[10px] font-semibold text-ink-3">1D</span>
+      {up ? "+" : "−"}{inr(Math.abs(value))}{pct != null && ` (${up ? "+" : ""}${pct}%)`}
+    </span>
+  );
+}
+
 export type ItemAction = "update" | "edit" | "remove" | "plan";
 
 /**
@@ -41,6 +54,7 @@ export function GroupCard({ g, negative, onAction, fetchable, planLabel, manageH
         <div className="text-right">
           <span className={cn("num font-semibold", negative && "text-out")}>{inr(g.value)}</span>
           {g.gain !== null && <Gain value={g.gain} pct={g.gainPct} className="ml-2" />}
+          {g.dayChange != null && <DayChange value={g.dayChange} className="ml-2" />}
         </div>
       </header>
       <ul className="divide-y divide-line">
@@ -58,6 +72,7 @@ export function GroupCard({ g, negative, onAction, fetchable, planLabel, manageH
               <div className="text-right">
                 <p className="num text-sm font-semibold">{inr(i.value)}</p>
                 {i.gain !== null && <Gain value={i.gain} pct={i.gainPct} />}
+                {i.dayChange != null && <div><DayChange value={i.dayChange} pct={i.dayChangePct} on={i.dayChangeOn} /></div>}
               </div>
               {onAction && i.kind !== "ACCOUNT" && (
                 <Menu trigger={<Button variant="ghost" size="icon" aria-label={`Actions for ${i.name}`}><MoreHorizontal /></Button>}>

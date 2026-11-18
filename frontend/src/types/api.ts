@@ -301,6 +301,9 @@ export interface NetWorthItem {
   source: string;
   estimated: boolean;
   asOf: string | null;
+  dayChange: number | null;
+  dayChangePct: number | null;
+  dayChangeOn: string | null;
 }
 
 export interface NetWorthGroup {
@@ -311,6 +314,7 @@ export interface NetWorthGroup {
   gain: number | null;
   gainPct: number | null;
   items: NetWorthItem[];
+  dayChange: number | null;
 }
 
 export interface NetWorthSummary {
@@ -328,6 +332,8 @@ export interface NetWorthSummary {
   changeYtd: { since: string; amount: number; pct: number | null } | null;
   estimatedCount: number;
   pricesNote: string;
+  holdingsDayChange: number | null;
+  holdingsDayChangePct: number | null;
 }
 
 export interface NetWorthPoint {
