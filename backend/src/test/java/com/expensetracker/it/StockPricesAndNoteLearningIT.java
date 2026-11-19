@@ -416,4 +416,32 @@ class StockPricesAndNoteLearningIT extends IntegrationTestBase {
                 java.math.BigDecimal.class, s.userId(), today);
         assertEquals(0, saved.compareTo(nw.get("netWorth").decimalValue()));
     }
+
+    @Test
+    void xirrAppearsOnceYouSayWhenYouStartedInvesting() throws Exception {
+        Session s = register();
+        java.time.LocalDate today = java.time.LocalDate.now(com.expensetracker.common.TimeConfig.IST);
+        // 1,00,000 put in, worth 1,10,000 today
+        JsonNode stock = postJson(s, "/api/networth/holdings", Map.of("assetClass", "STOCK", "name", "Infosys", "units", "100",
+                "currentPrice", "1100", "investedAmount", "100000"), 201);
+        JsonNode item = findItem(getJson(s, "/api/networth"), stock.get("id").asText());
+        assertTrue(item.get("xirr").isNull(), "no start date yet: no guess");
+        assertEquals(0, getJson(s, "/api/networth").get("holdingsXirrCount").asInt());
+
+        putJson(s, "/api/networth/holdings/" + stock.get("id").asText(), Map.of("startDate", today.minusYears(1).toString()), 200);
+        JsonNode nw = getJson(s, "/api/networth");
+        item = findItem(nw, stock.get("id").asText());
+        java.math.BigDecimal x = item.get("xirr").decimalValue();
+        assertTrue(x.compareTo(new java.math.BigDecimal("9.9")) > 0 && x.compareTo(new java.math.BigDecimal("10.1")) < 0, "about 10% a year: " + x);
+        assertEquals(1, nw.get("holdingsXirrCount").asInt());
+        assertEquals(0, nw.get("holdingsXirr").decimalValue().compareTo(x));
+        for (JsonNode g : nw.get("assetGroups")) if (g.get("key").asText().equals("STOCK")) assertEquals(0, g.get("xirr").decimalValue().compareTo(x));
+
+        putJson(s, "/api/networth/holdings/" + stock.get("id").asText(), Map.of("startDate", today.plusDays(3).toString()), 400);
+    }
+
+    private static JsonNode findItem(JsonNode nw, String id) {
+        for (JsonNode g : nw.get("assetGroups")) for (JsonNode i : g.get("items")) if (i.get("id").asText().equals(id)) return i;
+        throw new AssertionError("no item " + id);
+    }
 }

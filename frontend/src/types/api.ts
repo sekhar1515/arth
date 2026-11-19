@@ -306,6 +306,9 @@ export interface NetWorthItem {
   dayChange: number | null;
   dayChangePct: number | null;
   dayChangeOn: string | null;
+  xirr: number | null;
+  xirrEstimated: boolean;
+  investingSince: string | null;
 }
 
 export interface NetWorthGroup {
@@ -318,6 +321,8 @@ export interface NetWorthGroup {
   items: NetWorthItem[];
   dayChange: number | null;
   dayChangePct: number | null;
+  xirr: number | null;
+  xirrCount: number;
 }
 
 export interface NetWorthSummary {
@@ -339,6 +344,9 @@ export interface NetWorthSummary {
   holdingsDayChangePct: number | null;
   sincePrevious: { since: string; amount: number; pct: number | null } | null;
   sinceStart: { since: string; amount: number; pct: number | null } | null;
+  holdingsXirr: number | null;
+  holdingsXirrCount: number;
+  holdingsCount: number;
 }
 
 export interface NetWorthPoint {

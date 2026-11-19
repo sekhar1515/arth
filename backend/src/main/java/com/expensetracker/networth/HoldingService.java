@@ -267,7 +267,10 @@ public class HoldingService {
             if (!List.of(1, 2, 4, 12).contains(r.compoundingPerYear())) throw ApiException.badRequest("Compounding must be yearly, half-yearly, quarterly or monthly");
             h.setCompoundingPerYear(r.compoundingPerYear());
         }
-        if (r.startDate() != null) h.setStartDate(r.startDate());
+        if (r.startDate() != null) {
+            if (r.startDate().isAfter(TimeConfig.today(clock))) throw ApiException.badRequest("The start date can't be in the future");
+            h.setStartDate(r.startDate());
+        }
         if (r.maturityDate() != null) h.setMaturityDate(r.maturityDate());
         if (r.notes() != null) h.setNotes(blank(r.notes()));
         if (r.schemeCode() != null) {

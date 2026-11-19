@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PageHeader } from "@/components/layout/app-shell";
 import { BUCKET_LABEL, LiabilityDialog } from "@/components/finance/networth-dialogs";
-import { BUCKET_COLOR, DayChange, Gain, GroupCard } from "@/components/finance/wealth-parts";
+import { BUCKET_COLOR, DayChange, Gain, GroupCard, XirrBadge } from "@/components/finance/wealth-parts";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm";
 import { EmptyState, ErrorState, Panel, Skeleton } from "@/components/ui/states";
@@ -90,6 +90,7 @@ export default function NetWorthPage() {
                   <p className="text-[13px] text-ink-2">Investments &amp; other assets</p>
                   <p className="num text-xl font-semibold">{inr(s.holdingsValue)}</p>
                   <p className="text-xs text-ink-3">Invested {inr(s.investedInHoldings)} <Gain value={s.holdingsGain} pct={s.holdingsGainPct} className="ml-1" /></p>
+                  {s.holdingsXirr != null && <p className="mt-1 text-xs text-ink-3"><XirrBadge value={s.holdingsXirr} /> based on {s.holdingsXirrCount} of {s.holdingsCount} holdings</p>}
                 </div>
               )}
             </div>

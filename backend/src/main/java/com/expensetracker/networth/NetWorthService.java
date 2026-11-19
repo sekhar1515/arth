@@ -34,11 +34,11 @@ public class NetWorthService {
     /** {@code dayChange}: how much the value moved on the latest NAV/close day ({@code dayChangeOn}), from the official prices. */
     public record Item(String kind, UUID id, String name, String detail, BigDecimal value, BigDecimal invested, BigDecimal gain,
                        BigDecimal gainPct, String source, boolean estimated, String asOf, BigDecimal dayChange, BigDecimal dayChangePct,
-                       LocalDate dayChangeOn) {
+                       LocalDate dayChangeOn, BigDecimal xirr, boolean xirrEstimated, LocalDate investingSince) {
     }
 
     public record Group(String key, String label, BigDecimal value, BigDecimal invested, BigDecimal gain, BigDecimal gainPct, List<Item> items,
-                        BigDecimal dayChange, BigDecimal dayChangePct) {
+                        BigDecimal dayChange, BigDecimal dayChangePct, BigDecimal xirr, int xirrCount) {
     }
 
     private record DayMove(BigDecimal change, BigDecimal base, LocalDate on) {
@@ -54,7 +54,7 @@ public class NetWorthService {
                           BigDecimal holdingsValue, BigDecimal holdingsGain, BigDecimal holdingsGainPct, List<Group> assetGroups,
                           List<Group> liabilityGroups, List<AllocationSlice> allocation, Change change30d, Change changeYtd,
                           int estimatedCount, String pricesNote, BigDecimal holdingsDayChange, BigDecimal holdingsDayChangePct,
-                          Change sincePrevious, Change sinceStart) {
+                          Change sincePrevious, Change sinceStart, BigDecimal holdingsXirr, int holdingsXirrCount, int holdingsCount) {
     }
 
     public record Point(LocalDate date, BigDecimal assets, BigDecimal liabilities, BigDecimal netWorth) {
@@ -70,12 +70,13 @@ public class NetWorthService {
     private final UserRepository users;
     private final PriceService prices;
     private final StockPriceService stockPrices;
+    private final XirrService xirr;
     private final ObjectMapper json;
     private final Clock clock;
 
     public NetWorthService(AccountService accounts, HoldingRepository holdings, LiabilityRepository liabilities,
                            NetWorthSnapshotRepository snapshots, HoldingService holdingService, UserRepository users,
-                           PriceService prices, StockPriceService stockPrices, ObjectMapper json, Clock clock) {
+                           PriceService prices, StockPriceService stockPrices, XirrService xirr, ObjectMapper json, Clock clock) {
         this.accounts = accounts;
         this.holdings = holdings;
         this.liabilities = liabilities;
@@ -84,6 +85,7 @@ public class NetWorthService {
         this.users = users;
         this.prices = prices;
         this.stockPrices = stockPrices;
+        this.xirr = xirr;
         this.json = json;
         this.clock = clock;
     }
@@ -97,9 +99,9 @@ public class NetWorthService {
             if (a.archived()) continue;
             String source = "Opening balance + imported transactions";
             if (a.type() == AccountType.CREDIT_CARD && a.balance().signum() < 0) {
-                cardItems.add(new Item("ACCOUNT", a.id(), a.name(), "Credit card outstanding", a.balance().negate(), null, null, null, source, false, null, null, null, null));
+                cardItems.add(new Item("ACCOUNT", a.id(), a.name(), "Credit card outstanding", a.balance().negate(), null, null, null, source, false, null, null, null, null, null, false, null));
             } else {
-                cashItems.add(new Item("ACCOUNT", a.id(), a.name(), label(a.type()), a.balance(), null, null, null, source, false, null, null, null, null));
+                cashItems.add(new Item("ACCOUNT", a.id(), a.name(), label(a.type()), a.balance(), null, null, null, source, false, null, null, null, null, null, false, null));
             }
         }
 
@@ -111,8 +113,19 @@ public class NetWorthService {
         Map<String, PriceService.Scheme> schemes = prices.byCodes(mine.stream().map(Holding::getSchemeCode).filter(java.util.Objects::nonNull).distinct().toList());
         Map<String, StockPriceService.Security> closes = stockPrices.byIsins(mine.stream().map(Holding::getIsin).filter(java.util.Objects::nonNull).distinct().toList());
         BigDecimal dayChange = null, dayBase = BigDecimal.ZERO;
+        Map<UUID, BigDecimal> values = new java.util.HashMap<>();
+        Map<UUID, HoldingService.HoldingDto> dtos = new java.util.HashMap<>();
         for (Holding h : mine) {
-            HoldingService.HoldingDto d = holdingService.toDto(h, today);
+            HoldingService.HoldingDto d0 = holdingService.toDto(h, today);
+            dtos.put(h.getId(), d0);
+            values.put(h.getId(), d0.value());
+        }
+        Map<UUID, XirrService.HoldingFlows> flows = xirr.flows(mine, values, today);
+        List<Xirr.Flow> allFlows = new ArrayList<>();
+        for (Holding h : mine) {
+            HoldingService.HoldingDto d = dtos.get(h.getId());
+            XirrService.HoldingFlows hf = flows.get(h.getId());
+            if (hf != null) allFlows.addAll(hf.flows());
             DayMove move = dayMove(h, schemes, closes);
             BigDecimal movePct = move == null || move.base().signum() == 0 ? null : move.change().multiply(BigDecimal.valueOf(100)).divide(move.base(), 2, RoundingMode.HALF_UP);
             if (move != null) {
@@ -121,7 +134,8 @@ public class NetWorthService {
             }
             byClass.computeIfAbsent(h.getAssetClass(), k -> new ArrayList<>()).add(new Item("HOLDING", h.getId(), h.getName(), detail(d), d.value(),
                     d.investedAmount(), d.gain(), d.gainPct(), sourceLabel(d), d.estimated(), d.priceAsOf() == null ? null : d.priceAsOf().toString(),
-                    move == null ? null : move.change(), movePct, move == null ? null : move.on()));
+                    move == null ? null : move.change(), movePct, move == null ? null : move.on(),
+                    hf == null ? null : Xirr.percent(hf.flows()), hf != null && hf.estimated(), h.getStartDate()));
             holdingsValue = holdingsValue.add(d.value());
             if (d.investedAmount() != null) {
                 invested = invested.add(d.investedAmount());
@@ -136,14 +150,14 @@ public class NetWorthService {
 
         List<Group> assetGroups = new ArrayList<>();
         if (!cashItems.isEmpty()) assetGroups.add(group("CASH", "Bank & cash", cashItems));
-        byClass.forEach((cls, items) -> assetGroups.add(group(cls.name(), cls.label(), items)));
+        byClass.forEach((cls, items) -> assetGroups.add(withXirr(group(cls.name(), cls.label(), items), flows)));
 
         List<Item> loanItems = new ArrayList<>();
         for (Liability l : liabilities.findByUserIdAndArchivedFalse(userId)) {
             String detail = (l.getLender() == null ? "" : l.getLender() + ", ") + (l.getInterestRate() == null ? "" : l.getInterestRate().stripTrailingZeros().toPlainString() + "%")
                     + (l.getEmi() == null ? "" : ", EMI " + com.expensetracker.analytics.InrFormat.format(l.getEmi()));
             loanItems.add(new Item("LIABILITY", l.getId(), l.getName(), detail.replaceAll("^, |, $", ""), l.getOutstanding(), null, null, null,
-                    "Outstanding you entered on " + l.getAsOf(), false, l.getAsOf().toString(), null, null, null));
+                    "Outstanding you entered on " + l.getAsOf(), false, l.getAsOf().toString(), null, null, null, null, false, null));
         }
         List<Group> liabilityGroups = new ArrayList<>();
         if (!cardItems.isEmpty()) liabilityGroups.add(group("CARDS", "Credit cards", cardItems));
@@ -172,7 +186,33 @@ public class NetWorthService {
                 assetGroups, liabilityGroups, allocation, change(userId, today.minusDays(30), net), change(userId, LocalDate.of(today.getYear(), 1, 1), net),
                 estimated, pricesNote, dayChange == null ? null : dayChange.setScale(2, RoundingMode.HALF_UP),
                 dayChange == null || dayBase.signum() == 0 ? null : dayChange.multiply(BigDecimal.valueOf(100)).divide(dayBase, 2, RoundingMode.HALF_UP),
-                change(userId, today.minusDays(1), net), sinceStart(userId, today, net));
+                change(userId, today.minusDays(1), net), sinceStart(userId, today, net),
+                Xirr.percent(mergeTodayValues(allFlows, today)), flows.size(), mine.size());
+    }
+
+    /** A group's XIRR from the flows of its holdings that have one. */
+    private static Group withXirr(Group g, Map<UUID, XirrService.HoldingFlows> flows) {
+        List<Xirr.Flow> merged = new ArrayList<>();
+        int count = 0;
+        for (Item i : g.items()) {
+            XirrService.HoldingFlows hf = flows.get(i.id());
+            if (hf == null) continue;
+            merged.addAll(hf.flows());
+            count++;
+        }
+        return new Group(g.key(), g.label(), g.value(), g.invested(), g.gain(), g.gainPct(), g.items(), g.dayChange(), g.dayChangePct(),
+                count == 0 ? null : Xirr.percent(mergeTodayValues(merged, LocalDate.MAX)), count);
+    }
+
+    /** Fewer, larger flows: today's values of all holdings as one positive flow (same result, quicker to solve). */
+    private static List<Xirr.Flow> mergeTodayValues(List<Xirr.Flow> flows, LocalDate ignored) {
+        Map<LocalDate, BigDecimal> byDate = new java.util.TreeMap<>();
+        for (Xirr.Flow f : flows) byDate.merge(f.date(), f.amount(), BigDecimal::add);
+        List<Xirr.Flow> out = new ArrayList<>();
+        byDate.forEach((d, a) -> {
+            if (a.signum() != 0) out.add(new Xirr.Flow(d, a));
+        });
+        return out;
     }
 
     /** Change since the first saved day, for people whose history is too short for "last 30 days". */
@@ -288,7 +328,7 @@ public class NetWorthService {
         // previous value of the holdings that moved: value now minus the move
         BigDecimal before = moved.stream().map(i -> i.value().subtract(i.dayChange())).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal dayPct = day == null || before.signum() <= 0 ? null : day.multiply(BigDecimal.valueOf(100)).divide(before, 2, RoundingMode.HALF_UP);
-        return new Group(key, label, value, invested, gain, pct, items, day, dayPct);
+        return new Group(key, label, value, invested, gain, pct, items, day, dayPct, null, 0);
     }
 
     private static String label(AccountType t) {

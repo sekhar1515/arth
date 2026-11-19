@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal, Pencil, RefreshCw, Repeat, Trash2, TrendingDown, TrendingUp } from "lucide-react";
+import { MoreHorizontal, Pencil, Percent, RefreshCw, Repeat, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { SourceBadge } from "@/components/finance/networth-dialogs";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,17 @@ export function DayChange({ value, pct, on, className }: { value: number | null;
   );
 }
 
-export type ItemAction = "update" | "edit" | "remove" | "plan";
+export type ItemAction = "update" | "edit" | "remove" | "plan" | "xirr";
+
+export function XirrBadge({ value, estimated, className }: { value: number | null; estimated?: boolean; className?: string }) {
+  if (value === null || value === undefined) return null;
+  return (
+    <span className={cn("num inline-flex items-center gap-1 text-[11px] font-semibold", value >= 0 ? "text-in" : "text-out", className)}
+      title="XIRR: yearly return, counting when the money went in">
+      <span className="rounded bg-surface-2 px-1 text-[10px] font-semibold text-ink-3">XIRR</span>{value}%{estimated ? <span className="font-normal text-ink-3"> est.</span> : null}
+    </span>
+  );
+}
 
 /**
  * A card of items (bank accounts, funds, loans…). Pass {@code onAction} for an actions menu; {@code manageHref} instead
@@ -55,6 +65,7 @@ export function GroupCard({ g, negative, onAction, fetchable, planLabel, manageH
           <span className={cn("num font-semibold", negative && "text-out")}>{inr(g.value)}</span>
           {g.gain !== null && <Gain value={g.gain} pct={g.gainPct} className="ml-2" />}
           {g.dayChange != null && <DayChange value={g.dayChange} className="ml-2" />}
+          {g.xirr != null && <XirrBadge value={g.xirr} className="ml-2" />}
         </div>
       </header>
       <ul className="divide-y divide-line">
@@ -73,6 +84,9 @@ export function GroupCard({ g, negative, onAction, fetchable, planLabel, manageH
                 <p className="num text-sm font-semibold">{inr(i.value)}</p>
                 {i.gain !== null && <Gain value={i.gain} pct={i.gainPct} />}
                 {i.dayChange != null && <div><DayChange value={i.dayChange} pct={i.dayChangePct} on={i.dayChangeOn} /></div>}
+                {i.kind === "HOLDING" && (i.xirr != null
+                  ? <div><XirrBadge value={i.xirr} estimated={i.xirrEstimated} /></div>
+                  : onAction && i.invested != null && <div><button type="button" className="text-[11px] font-medium text-peacock hover:underline" onClick={() => onAction(i, "xirr")}>Show XIRR</button></div>)}
               </div>
               {onAction && i.kind !== "ACCOUNT" && (
                 <Menu trigger={<Button variant="ghost" size="icon" aria-label={`Actions for ${i.name}`}><MoreHorizontal /></Button>}>
@@ -80,6 +94,9 @@ export function GroupCard({ g, negative, onAction, fetchable, planLabel, manageH
                     <MenuItem onSelect={() => onAction(i, "update")}><RefreshCw className="size-4 text-ink-3" /> {fetchable?.(i.id) ? "Get latest price" : "Update value"}</MenuItem>
                   )}
                   {plan && <MenuItem onSelect={() => onAction(i, "plan")}><Repeat className="size-4 text-ink-3" /> {plan}</MenuItem>}
+                  {i.kind === "HOLDING" && i.invested != null && (
+                    <MenuItem onSelect={() => onAction(i, "xirr")}><Percent className="size-4 text-ink-3" /> {i.xirr != null ? "Change XIRR start date" : "Show XIRR"}</MenuItem>
+                  )}
                   <MenuItem onSelect={() => onAction(i, "edit")}><Pencil className="size-4 text-ink-3" /> Edit</MenuItem>
                   <MenuItem danger onSelect={() => onAction(i, "remove")}><Trash2 className="size-4" /> Delete</MenuItem>
                 </Menu>
