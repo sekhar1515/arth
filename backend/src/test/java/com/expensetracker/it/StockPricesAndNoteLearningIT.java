@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -443,5 +444,52 @@ class StockPricesAndNoteLearningIT extends IntegrationTestBase {
     private static JsonNode findItem(JsonNode nw, String id) {
         for (JsonNode g : nw.get("assetGroups")) for (JsonNode i : g.get("items")) if (i.get("id").asText().equals(id)) return i;
         throw new AssertionError("no item " + id);
+    }
+
+    @Test
+    void purchasesOnDifferentDatesGiveExactXirrAndReturnsPerStage() throws Exception {
+        Session s = register();
+        java.time.LocalDate today = java.time.LocalDate.now(com.expensetracker.common.TimeConfig.IST);
+        // a fund now at ₹100 a unit
+        JsonNode fund = postJson(s, "/api/networth/holdings", Map.of("assetClass", "STOCK", "name", "Some stock", "units", "1", "currentPrice", "100"), 201);
+        String id = fund.get("id").asText();
+        java.time.LocalDate d1 = today.minusYears(3), d2 = today.minusYears(2), d3 = today.minusMonths(6);
+        JsonNode view = postJson(s, "/api/networth/holdings/" + id + "/lots", Map.of("setTotals", true, "lots", List.of(
+                Map.of("date", d1.toString(), "amount", "5000", "units", "100"),     // ₹50 a unit
+                Map.of("date", d2.toString(), "units", "50", "price", "80"),          // ₹4,000
+                Map.of("date", d3.toString(), "amount", "4500", "price", "90"))), 200); // 50 units
+        assertEquals(3, view.get("lots").size());
+        JsonNode first = view.get("lots").get(0);
+        assertEquals(0, first.get("valueToday").decimalValue().compareTo(new java.math.BigDecimal("10000.00")), "100 units × ₹100");
+        assertEquals(0, first.get("gainPct").decimalValue().compareTo(new java.math.BigDecimal("100.00")));
+        java.math.BigDecimal cagr = first.get("yearlyReturn").decimalValue();
+        assertTrue(cagr.compareTo(new java.math.BigDecimal("25.8")) > 0 && cagr.compareTo(new java.math.BigDecimal("26.1")) < 0, "doubling in 3 years ≈ 26% a year: " + cagr);
+        assertEquals(0, view.get("lots").get(1).get("amount").decimalValue().compareTo(new java.math.BigDecimal("4000.00")), "units × price");
+        assertEquals(3, view.get("years").size(), "one row per year of buying");
+        assertNotNull(view.get("xirr").decimalValue());
+        assertTrue(view.get("coverageNote").isNull(), "the history covers everything");
+
+        // "these are all my purchases" set units, amount put in and start date
+        JsonNode h = getJson(s, "/api/networth/holdings").get(0);
+        assertEquals(0, h.get("units").decimalValue().compareTo(new java.math.BigDecimal("200")));
+        assertEquals(0, h.get("investedAmount").decimalValue().compareTo(new java.math.BigDecimal("13500.00")));
+        assertEquals(d1.toString(), h.get("startDate").asText());
+        // net worth uses the exact XIRR (not the one-date estimate)
+        JsonNode item = findItem(getJson(s, "/api/networth"), id);
+        assertEquals(0, item.get("xirr").decimalValue().compareTo(view.get("xirr").decimalValue()));
+        assertFalse(item.get("xirrEstimated").asBoolean());
+
+        // deleting a purchase updates the history
+        JsonNode after = call(s, org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/networth/lots/" + view.get("lots").get(2).get("id").asText()), 200);
+        assertEquals(2, after.get("lots").size());
+        postJson(s, "/api/networth/holdings/" + id + "/lots", Map.of("lots", List.of(Map.of("date", today.plusDays(2).toString(), "amount", "10"))), 400);
+    }
+
+    @Test
+    void etfsAreFiledAsEtfNotFunds() throws Exception {
+        Session s = register();
+        assertEquals("ETF", postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "Nippon India ETF Gold BeES", "units", "1", "currentPrice", "60"), 201).get("assetClass").asText());
+        assertEquals("ETF", postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "GOLDBEES", "units", "1", "currentPrice", "60"), 201).get("assetClass").asText());
+        assertEquals("MUTUAL_FUND", postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "Motilal Oswal Nasdaq 100 ETF Fund of Fund", "units", "1", "currentPrice", "30"), 201).get("assetClass").asText(), "fund-of-funds stay funds");
     }
 }

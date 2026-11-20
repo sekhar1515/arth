@@ -42,6 +42,7 @@ public class PrivacyService {
         EXPORT.put("recurringPayments", "SELECT * FROM recurring_payments WHERE user_id = :u");
         EXPORT.put("creditCardDetails", "SELECT * FROM credit_card_details WHERE user_id = :u");
         EXPORT.put("investmentPlans", "SELECT * FROM investment_plans WHERE user_id = :u");
+        EXPORT.put("purchases", "SELECT * FROM holding_lots WHERE user_id = :u");
         EXPORT.put("investmentInstallments", "SELECT * FROM investment_installments WHERE user_id = :u");
         EXPORT.put("goals", "SELECT * FROM financial_goals WHERE user_id = :u");
         EXPORT.put("goalContributions", "SELECT * FROM goal_contributions WHERE user_id = :u");

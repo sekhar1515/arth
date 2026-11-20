@@ -8,6 +8,7 @@ import { canFetchPrice, HoldingDialog, ImportHoldingsDialog, UpdateValueDialog }
 import { InstallmentLine, PfDialog, planKindFor, PlanDialog, planSummary } from "@/components/finance/plan-dialogs";
 import { DayChange, Gain, GroupCard, XirrBadge, type ItemAction } from "@/components/finance/wealth-parts";
 import { XirrDialog } from "@/components/finance/xirr-dialog";
+import { PurchasesDialog } from "@/components/finance/purchases-dialog";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm";
 import { Menu, MenuItem } from "@/components/ui/menu";
@@ -31,6 +32,7 @@ export default function InvestmentsPage() {
   const [updateHolding, setUpdateHolding] = useState<Holding | null>(null);
   const [planFor, setPlanFor] = useState<{ holding: Holding; plan?: InvestmentPlan } | null>(null);
   const [xirrFor, setXirrFor] = useState<Holding | null>(null);
+  const [lotsFor, setLotsFor] = useState<Holding | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const s = nw.data;
   const groups = (s?.assetGroups ?? []).filter((g) => g.items.some((i) => i.kind === "HOLDING"));
@@ -95,6 +97,7 @@ export default function InvestmentsPage() {
     else if (action === "edit") setEditHolding(h);
     else if (action === "plan") setPlanFor({ holding: h });
     else if (action === "xirr") setXirrFor(h);
+    else if (action === "lots") setLotsFor(h);
     else removeHolding(item);
   }
 
@@ -264,7 +267,8 @@ export default function InvestmentsPage() {
       {editHolding && <HoldingDialog holding={editHolding} open onOpenChange={(o) => !o && setEditHolding(null)} />}
       {updateHolding && <UpdateValueDialog holding={updateHolding} open onOpenChange={(o) => !o && setUpdateHolding(null)} />}
       {planFor && <PlanDialog holding={planFor.holding} plan={planFor.plan} open onOpenChange={(o) => !o && setPlanFor(null)} />}
-      {xirrFor && <XirrDialog holding={xirrFor} open onOpenChange={(o) => !o && setXirrFor(null)} />}
+      {xirrFor && <XirrDialog holding={xirrFor} open onOpenChange={(o) => !o && setXirrFor(null)} onPurchases={() => { setLotsFor(xirrFor); setXirrFor(null); }} />}
+      {lotsFor && <PurchasesDialog holding={lotsFor} open onOpenChange={(o) => !o && setLotsFor(null)} />}
       {confirmDialog}
     </>
   );

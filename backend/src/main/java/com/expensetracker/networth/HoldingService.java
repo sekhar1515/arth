@@ -60,7 +60,7 @@ public class HoldingService {
     @Transactional
     public HoldingDto create(UUID userId, HoldingRequest req) {
         if (req.assetClass() == null) throw ApiException.badRequest("Choose what kind of asset this is");
-        Holding h = new Holding(userId, req.assetClass(), requireName(req.name()));
+        Holding h = new Holding(userId, AssetClass.refine(req.assetClass(), req.name()), requireName(req.name()));
         apply(h, req, true);
         if (h.getValuationMethod() == ValuationMethod.MANUAL) {
             if (h.getInterestRate() == null) h.setInterestRate(InterestAccrual.defaultRate(h.getAssetClass()));
@@ -176,7 +176,7 @@ public class HoldingService {
         Instant now = clock.instant();
         for (HoldingsCsvParser.HoldingRow row : parsed.rows()) {
             AssetClass cls = forcedClass != null ? forcedClass
-                    : row.looksLikeFund() ? AssetClass.MUTUAL_FUND
+                    : row.looksLikeFund() ? AssetClass.refine(AssetClass.MUTUAL_FUND, row.name())
                     : row.name().toUpperCase(Locale.ROOT).matches(".*(ETF|BEES|NIFTYBEES|GOLDBEES).*") ? AssetClass.ETF : AssetClass.STOCK;
             Holding h = find(mine, row, plat).orElse(null);
             boolean isNew = h == null;

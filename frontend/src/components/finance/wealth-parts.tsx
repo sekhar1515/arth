@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal, Pencil, Percent, RefreshCw, Repeat, Trash2, TrendingDown, TrendingUp } from "lucide-react";
+import { History, MoreHorizontal, Pencil, Percent, RefreshCw, Repeat, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { SourceBadge } from "@/components/finance/networth-dialogs";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ export function DayChange({ value, pct, on, className }: { value: number | null;
   );
 }
 
-export type ItemAction = "update" | "edit" | "remove" | "plan" | "xirr";
+export type ItemAction = "update" | "edit" | "remove" | "plan" | "xirr" | "lots";
 
 export function XirrBadge({ value, estimated, className }: { value: number | null; estimated?: boolean; className?: string }) {
   if (value === null || value === undefined) return null;
@@ -85,7 +85,7 @@ export function GroupCard({ g, negative, onAction, fetchable, planLabel, manageH
                 {i.gain !== null && <Gain value={i.gain} pct={i.gainPct} />}
                 {i.dayChange != null && <div><DayChange value={i.dayChange} pct={i.dayChangePct} on={i.dayChangeOn} /></div>}
                 {i.kind === "HOLDING" && (i.xirr != null
-                  ? <div><XirrBadge value={i.xirr} estimated={i.xirrEstimated} /></div>
+                  ? <div><button type="button" onClick={() => onAction?.(i, "lots")} className="hover:underline" title="See purchases & returns"><XirrBadge value={i.xirr} estimated={i.xirrEstimated} /></button></div>
                   : onAction && i.invested != null && <div><button type="button" className="text-[11px] font-medium text-peacock hover:underline" onClick={() => onAction(i, "xirr")}>Show XIRR</button></div>)}
               </div>
               {onAction && i.kind !== "ACCOUNT" && (
@@ -94,8 +94,11 @@ export function GroupCard({ g, negative, onAction, fetchable, planLabel, manageH
                     <MenuItem onSelect={() => onAction(i, "update")}><RefreshCw className="size-4 text-ink-3" /> {fetchable?.(i.id) ? "Get latest price" : "Update value"}</MenuItem>
                   )}
                   {plan && <MenuItem onSelect={() => onAction(i, "plan")}><Repeat className="size-4 text-ink-3" /> {plan}</MenuItem>}
-                  {i.kind === "HOLDING" && i.invested != null && (
-                    <MenuItem onSelect={() => onAction(i, "xirr")}><Percent className="size-4 text-ink-3" /> {i.xirr != null ? "Change XIRR start date" : "Show XIRR"}</MenuItem>
+                  {i.kind === "HOLDING" && (
+                    <MenuItem onSelect={() => onAction(i, "lots")}><History className="size-4 text-ink-3" /> Purchases &amp; returns</MenuItem>
+                  )}
+                  {i.kind === "HOLDING" && i.invested != null && i.xirr == null && (
+                    <MenuItem onSelect={() => onAction(i, "xirr")}><Percent className="size-4 text-ink-3" /> Show XIRR</MenuItem>
                   )}
                   <MenuItem onSelect={() => onAction(i, "edit")}><Pencil className="size-4 text-ink-3" /> Edit</MenuItem>
                   <MenuItem danger onSelect={() => onAction(i, "remove")}><Trash2 className="size-4" /> Delete</MenuItem>

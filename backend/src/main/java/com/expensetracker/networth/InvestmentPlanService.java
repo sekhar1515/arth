@@ -232,13 +232,22 @@ public class InvestmentPlanService {
         }
         UUID txnId = p.getAccountId() == null ? null : recordDebit(p, h, due);
         transactions.flush(); // the debit must be in the database before the installment row points at it
-        jdbc.update("""
+        UUID installmentId = UUID.randomUUID();
+        int added = jdbc.update("""
                 INSERT INTO investment_installments (id, plan_id, user_id, due_date, amount, nav, nav_date, units, transaction_id)
                 VALUES (:id, :plan, :user, :due, :amount, :nav, :navDate, :units, :txn)
                 ON CONFLICT (plan_id, due_date) DO NOTHING
-                """, new MapSqlParameterSource().addValue("id", UUID.randomUUID()).addValue("plan", p.getId()).addValue("user", p.getUserId())
+                """, new MapSqlParameterSource().addValue("id", installmentId).addValue("plan", p.getId()).addValue("user", p.getUserId())
                 .addValue("due", due).addValue("amount", p.total()).addValue("nav", nav).addValue("navDate", navDate).addValue("units", units)
                 .addValue("txn", txnId));
+        if (added > 0) {
+            // each installment is also a purchase in the holding's history (exact XIRR, per-purchase returns)
+            jdbc.update("""
+                    INSERT INTO holding_lots (id, user_id, holding_id, trade_date, kind, amount, units, price, source, installment_id)
+                    VALUES (:id, :u, :h, :d, 'BUY', :a, :units, :price, 'SIP', :inst)
+                    """, new MapSqlParameterSource().addValue("id", UUID.randomUUID()).addValue("u", p.getUserId()).addValue("h", h.getId())
+                    .addValue("d", due).addValue("a", p.total()).addValue("units", units).addValue("price", nav).addValue("inst", installmentId));
+        }
         p.setLastRunDate(due);
         return true;
     }

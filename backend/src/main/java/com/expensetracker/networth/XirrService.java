@@ -22,7 +22,8 @@ import java.util.UUID;
  *   <li>every SIP or contribution Arth applied, on its date;</li>
  *   <li>today's value.</li>
  * </ul>
- * FDs use their deposit date. Holdings without a start date get no XIRR (it would be a guess).
+ * When you've entered purchases yourself, those (plus SIPs) are used instead, which is exact. FDs use their deposit date.
+ * Holdings without a start date or purchases get no XIRR (it would be a guess).
  */
 @Component
 public class XirrService {
@@ -44,13 +45,23 @@ public class XirrService {
         Map<UUID, HoldingFlows> out = new HashMap<>();
         if (holdings.isEmpty()) return out;
         Map<UUID, List<Installment>> byHolding = new HashMap<>();
+        Map<UUID, List<Xirr.Flow>> manual = new HashMap<>();
         jdbc.query("""
-                SELECT p.holding_id, i.due_date, i.amount, p.kind FROM investment_installments i
-                JOIN investment_plans p ON p.id = i.plan_id WHERE p.holding_id IN (:ids) ORDER BY i.due_date
+                SELECT holding_id, trade_date, amount, kind, source FROM holding_lots WHERE holding_id IN (:ids) ORDER BY trade_date
                 """, new MapSqlParameterSource("ids", holdings.stream().map(Holding::getId).toList()), rs -> {
-            Installment in = new Installment(rs.getObject(1, UUID.class), rs.getObject(2, LocalDate.class), rs.getBigDecimal(3), "SIP".equals(rs.getString(4)));
-            byHolding.computeIfAbsent(in.holdingId(), k -> new ArrayList<>()).add(in);
+            UUID hid = rs.getObject(1, UUID.class);
+            LocalDate d = rs.getObject(2, LocalDate.class);
+            BigDecimal amount = rs.getBigDecimal(3);
+            boolean buy = "BUY".equals(rs.getString(4));
+            if ("SIP".equals(rs.getString(5))) byHolding.computeIfAbsent(hid, k -> new ArrayList<>()).add(new Installment(hid, d, amount, true));
+            // the full history (manual purchases and SIPs), used when you've entered purchases yourself
+            manual.computeIfAbsent(hid, k -> new ArrayList<>()).add(new Xirr.Flow(d, buy ? amount.negate() : amount));
         });
+        java.util.Set<UUID> hasManual = new java.util.HashSet<>();
+        jdbc.query("SELECT DISTINCT holding_id FROM holding_lots WHERE source = 'MANUAL' AND holding_id IN (:ids)",
+                new MapSqlParameterSource("ids", holdings.stream().map(Holding::getId).toList()), rs -> {
+                    hasManual.add(rs.getObject(1, UUID.class));
+                });
         Map<UUID, Boolean> hasSip = new HashMap<>();
         jdbc.query("SELECT holding_id FROM investment_plans WHERE kind = 'SIP' AND holding_id IN (:ids)",
                 new MapSqlParameterSource("ids", holdings.stream().map(Holding::getId).toList()), rs -> {
@@ -58,6 +69,13 @@ public class XirrService {
                 });
         for (Holding h : holdings) {
             BigDecimal value = values.get(h.getId());
+            if (hasManual.contains(h.getId()) && value != null && value.signum() > 0) {
+                // exact: every purchase/sale on its own date, then today's value
+                List<Xirr.Flow> exact = new ArrayList<>(manual.get(h.getId()));
+                exact.add(new Xirr.Flow(today, value));
+                out.put(h.getId(), new HoldingFlows(exact, false));
+                continue;
+            }
             if (value == null || value.signum() <= 0 || h.getInvestedAmount() == null || h.getStartDate() == null) continue;
             if (h.getStartDate().isAfter(today)) continue;
             List<Installment> tracked = byHolding.getOrDefault(h.getId(), List.of());

@@ -39,10 +39,12 @@ public class NetWorthController {
     private final ManualRefreshLimiter manualRefresh;
     private final InvestmentPlanService plans;
     private final InterestAccrualService interest;
+    private final LotService lots;
 
     public NetWorthController(NetWorthService netWorth, HoldingService holdings, LiabilityService liabilities, PriceService prices,
                               StockPriceService stockPrices, PriceRefresher refresher, ManualRefreshLimiter manualRefresh,
-                              InvestmentPlanService plans, InterestAccrualService interest) {
+                              InvestmentPlanService plans, InterestAccrualService interest,
+                              LotService lots) {
         this.netWorth = netWorth;
         this.holdings = holdings;
         this.liabilities = liabilities;
@@ -52,6 +54,7 @@ public class NetWorthController {
         this.manualRefresh = manualRefresh;
         this.plans = plans;
         this.interest = interest;
+        this.lots = lots;
     }
 
     @GetMapping
@@ -176,6 +179,29 @@ public class NetWorthController {
         }
         if (!any) throw ApiException.unprocessable(firstProblem != null ? firstProblem : "No sheet in this file looks like a holdings list");
         return new HoldingService.ImportResult(rows, created, updated, linked, errors);
+    }
+
+    // ---------------------------------------------------------------- purchase history
+
+    @GetMapping("/holdings/{id}/lots")
+    public LotService.LotsView lots(@PathVariable UUID id) {
+        return lots.view(CurrentUser.id(), id);
+    }
+
+    @PostMapping("/holdings/{id}/lots")
+    public LotService.LotsView addLots(@PathVariable UUID id, @RequestBody LotService.AddRequest req) {
+        UUID userId = CurrentUser.id();
+        var v = lots.add(userId, id, req);
+        netWorth.snapshot(userId);
+        return v;
+    }
+
+    @DeleteMapping("/lots/{id}")
+    public LotService.LotsView deleteLot(@PathVariable UUID id) {
+        UUID userId = CurrentUser.id();
+        var v = lots.delete(userId, id);
+        netWorth.snapshot(userId);
+        return v;
     }
 
     // ---------------------------------------------------------------- SIPs and contributions

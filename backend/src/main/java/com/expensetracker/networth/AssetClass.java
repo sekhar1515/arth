@@ -40,4 +40,16 @@ public enum AssetClass {
         if (c.contains("gold")) return Allocation.GOLD;
         return Allocation.EQUITY;
     }
+
+    /**
+     * ETFs often arrive labelled as mutual funds (AMFI lists them, broker exports mix them in). A name with "ETF" or
+     * "BeES" is an ETF, unless it is a fund-of-funds that invests in ETFs.
+     */
+    public static AssetClass refine(AssetClass cls, String name) {
+        if (cls != MUTUAL_FUND || name == null) return cls;
+        String n = name.toUpperCase(java.util.Locale.ROOT);
+        boolean etf = n.matches(".*\\bETF\\b.*") || n.contains("BEES");
+        boolean fof = n.contains("FUND OF FUND") || n.matches(".*\\bFOF\\b.*");
+        return etf && !fof ? ETF : cls;
+    }
 }
