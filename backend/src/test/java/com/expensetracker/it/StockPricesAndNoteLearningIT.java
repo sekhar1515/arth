@@ -492,4 +492,32 @@ class StockPricesAndNoteLearningIT extends IntegrationTestBase {
         assertEquals("ETF", postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "GOLDBEES", "units", "1", "currentPrice", "60"), 201).get("assetClass").asText());
         assertEquals("MUTUAL_FUND", postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "Motilal Oswal Nasdaq 100 ETF Fund of Fund", "units", "1", "currentPrice", "30"), 201).get("assetClass").asText(), "fund-of-funds stay funds");
     }
+
+    @Test
+    void aSipDueOnAWeekendOrHolidayGetsTheNextWorkingDaysNav() throws Exception {
+        Session s = register();
+        // a recent Saturday on day 1-28, with NAVs on the Friday before (240) and the Monday after (250)
+        java.time.LocalDate sat = java.time.LocalDate.now(com.expensetracker.common.TimeConfig.IST).minusDays(7)
+                .with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.SATURDAY));
+        while (sat.getDayOfMonth() > 28) sat = sat.minusWeeks(1);
+        JsonNode fund = postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "HDFC Nifty 50", "schemeCode", "119063",
+                "folio", "W1", "units", "10"), 201);
+        priceService.loadNavFile(navFileDated(sat.minusDays(1)).replace("250.0000", "240.0000"));
+        priceService.loadNavFile(navFileDated(sat.plusDays(2)));
+        UUID bank = createAccount(s, "HDFC", "BANK", "6666", "50000");
+        JsonNode plan = postJson(s, "/api/networth/plans", Map.of("holdingId", fund.get("id").asText(), "amount", "5000",
+                "dayOfMonth", sat.getDayOfMonth(), "accountId", bank.toString()), 201);
+        plainJdbc.update("UPDATE investment_plans SET last_run_date = ?, start_date = ? WHERE id = ?",
+                sat.minusDays(1), sat.minusDays(1), UUID.fromString(plan.get("id").asText()));
+        // a later NAV load moved Monday's into "previous": the history still knows the right day
+        priceService.loadNavFile(navFileDated(sat.plusDays(3)).replace("250.0000", "260.0000"));
+
+        JsonNode inst = getJson(s, "/api/networth/plans").get(0).get("installments").get(0);
+        assertEquals(sat.toString(), inst.get("dueDate").asText());
+        assertEquals(sat.plusDays(2).toString(), inst.get("navDate").asText(), "Monday's NAV, not Friday's or Tuesday's");
+        assertEquals(0, inst.get("nav").decimalValue().compareTo(new java.math.BigDecimal("250")));
+        assertEquals(0, inst.get("units").decimalValue().compareTo(new java.math.BigDecimal("20.000")));
+        JsonNode lots = getJson(s, "/api/networth/holdings/" + fund.get("id").asText() + "/lots").get("lots");
+        assertEquals(sat.plusDays(2).toString(), lots.get(0).get("date").asText(), "the purchase is dated the day units were allotted");
+    }
 }

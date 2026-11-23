@@ -352,7 +352,7 @@ export function UpdateValueDialog({ holding, open, onOpenChange }: { holding: Ho
                   <p className="mt-1 text-xs text-ink-3">{priceWord} was ₹{result.previousPrice}; now ₹{result.price}</p>
                 )}
                 {result.previousPrice != null && Number(result.previousPrice) === Number(result.price) && (
-                  <p className="mt-1 text-xs text-ink-3">Already refreshed. {fund ? "New NAVs come once AMFI publishes them (usually by 10 pm), and Arth loads them automatically." : "Stock prices update once a day after the 3:45 pm close, automatically."}</p>
+                  <p className="mt-1 text-xs text-ink-3">Already refreshed. {fund ? "Most funds publish the next NAV by 10 pm and international funds after midnight; Arth checks at 9:30 pm, 11:30 pm and 2:30 am." : "Stock prices update once a day after the 3:45 pm close, automatically."}</p>
                 )}
                 <Button className="mt-4 w-full" onClick={() => onOpenChange(false)}>Done</Button>
               </div>

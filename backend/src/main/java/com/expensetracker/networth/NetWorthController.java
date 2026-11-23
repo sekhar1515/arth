@@ -317,7 +317,7 @@ public class NetWorthController {
         String msg;
         if (d == null) msg = "Fund NAVs aren't loaded yet; they arrive with the next AMFI update.";
         else if (!refresher.fundsBehind()) msg = "Already refreshed: the " + InrDates.shortDate(d) + " NAVs" + (loaded == null ? "" : " were loaded " + loaded)
-                + ". New NAVs come once AMFI publishes them (usually by 10 pm) and Arth loads them automatically.";
+                + ". Most funds publish the next NAV by 10 pm and international funds after midnight; Arth checks at 9:30 pm, 11:30 pm and 2:30 am.";
         else msg = "Fund NAVs shown are for " + InrDates.shortDate(d) + ". Newer NAVs are being published; Arth loads them automatically.";
         return new PriceService.RefreshResult(true, 0, n, d, msg, java.time.Instant.now());
     }

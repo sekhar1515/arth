@@ -1,0 +1,212 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:wght@700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1080px;height:1350px;overflow:hidden;font-family:'Comic Neue',sans-serif;
+  background:#ffd23f radial-gradient(rgba(0,0,0,.09) 1.6px,transparent 1.8px) 0 0/14px 14px}
+.page{padding:26px 30px;display:flex;flex-direction:column;gap:16px;height:100%}
+.title{display:flex;align-items:center;justify-content:space-between}
+.title h1{font-family:Bangers;font-size:76px;letter-spacing:2px;color:#fff;line-height:1;
+  -webkit-text-stroke:3px #111;text-shadow:5px 5px 0 #111}
+.title h1 span{color:#ff5a36}
+.title .badge{font-family:Bangers;font-size:30px;background:#fff;border:4px solid #111;border-radius:16px;
+  padding:8px 16px;box-shadow:5px 5px 0 #111;transform:rotate(3deg);text-align:center;line-height:1.05}
+.row{display:flex;gap:16px}
+.panel{background:#fffaf0;border:5px solid #111;border-radius:10px;box-shadow:6px 6px 0 #111;position:relative;overflow:hidden}
+.panel svg{display:block;width:100%;height:100%}
+.cap{position:absolute;top:0;left:0;background:#111;color:#ffd23f;font-family:Bangers;font-size:26px;letter-spacing:1.5px;
+  padding:4px 14px 2px 12px;border-bottom-right-radius:10px;z-index:2}
+.foot{display:flex;gap:16px;align-items:stretch}
+.foot div{display:flex;align-items:center;flex-wrap:wrap;background:#fff;border:4px solid #111;border-radius:12px;box-shadow:5px 5px 0 #111;padding:10px 16px;font-size:23px;line-height:1.2}
+.foot .a{flex:1}
+.foot .b{flex:1.35;background:#111;color:#fff}
+.foot b{color:#ff5a36}
+.foot .b b{color:#ffd23f}
+.bub{font-family:'Comic Neue';font-weight:700;color:#000;letter-spacing:.1px;-webkit-font-smoothing:antialiased;text-align:center;display:flex;align-items:center;justify-content:center;height:100%;line-height:1.12}
+</style></head><body>
+<div class="page">
+  <div class="title">
+    <h1>BENGALURU ➜ <span>HYDERABAD</span><br><span style="font-size:48px;color:#fff">3 weeks in. Observations 😅</span></h1>
+    <div class="badge">EPISODE 1:<br>CITY LIFE<br>PREMIUM PLAN</div>
+  </div>
+  <div class="row" style="height:330px">
+    <div class="panel" style="flex:1"><div class="cap">🏠 HOUSING</div><svg id="p1" viewBox="0 0 334 320"></svg></div>
+    <div class="panel" style="flex:1"><div class="cap">🔥 GAS</div><svg id="p2" viewBox="0 0 334 320"></svg></div>
+    <div class="panel" style="flex:1"><div class="cap">🚌 TRANSPORT</div><svg id="p3" viewBox="0 0 334 320"></svg></div>
+  </div>
+  <div class="row" style="height:300px">
+    <div class="panel" style="flex:1"><div class="cap">💧 WATER</div><svg id="p4" viewBox="0 0 507 290"></svg></div>
+    <div class="panel" style="flex:1"><div class="cap">💸 JUGAAD ECONOMY</div><svg id="p5" viewBox="0 0 507 290"></svg></div>
+  </div>
+  <div class="row" style="flex:1">
+    <div class="panel" style="flex:1"><div class="cap">🧾 AND THE BIGGEST IRONY…</div><svg id="p6" viewBox="0 0 1020 380" preserveAspectRatio="xMidYMid slice"></svg></div>
+  </div>
+  <div class="foot">
+    <div class="a"><span>Lived in <b>both cities</b>? Tell me 👇</span></div>
+    <div class="b"><span>P.S. How do you track investments &amp; expenses? <b>Building a website for it</b> 👀</span></div>
+  </div>
+</div>
+<script>
+const K='#111';
+function bubble(x,y,w,h,txt,tx,ty,o={}){
+  const fs=o.fs||17, fill=o.fill||'#fff';
+  const cx=x+w/2, cy=y+h/2;
+  let tail='';
+  if(o.thought){
+    tail=`<circle cx="${(cx+tx)/2}" cy="${(cy+ty)/2+h/4}" r="7" fill="${fill}" stroke="${K}" stroke-width="3"/><circle cx="${tx}" cy="${ty}" r="4" fill="${fill}" stroke="${K}" stroke-width="3"/>`;
+  } else {
+    const bx=Math.min(Math.max(tx,x+18),x+w-18), by=ty>y+h?y+h-2:y+2;
+    tail=`<polygon points="${bx-11},${by} ${bx+11},${by} ${tx},${ty}" fill="${fill}" stroke="${K}" stroke-width="3" stroke-linejoin="round"/>`;
+  }
+  const r=o.thought?h/2:14;
+  return `<g>${o.thought?'':tail}<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${fill}" stroke="${K}" stroke-width="3"/>
+  ${o.thought?tail:`<polygon points="${Math.min(Math.max(tx,x+18),x+w-18)-8},${ty>y+h?y+h-1.5:y+1.5} ${Math.min(Math.max(tx,x+18),x+w-18)+8},${ty>y+h?y+h-1.5:y+1.5} ${Math.min(Math.max(tx,x+18),x+w-18)},${ty>y+h?y+h+4:y-4}" fill="${fill}"/>`}
+  <foreignObject x="${x+6}" y="${y+4}" width="${w-12}" height="${h-8}"><div xmlns="http://www.w3.org/1999/xhtml" class="bub" style="font-size:${fs}px">${txt}</div></foreignObject></g>`;
+}
+const ARM={down:[32,-62],up:[48,-178],out:[66,-108],hold:[46,-84],hip:[38,-80],wave:[58,-160]};
+function person(x,y,o={}){
+  const s=o.s||1, skin=o.skin||'#c98b5e', shirt=o.shirt||'#3a7bd5', pants=o.pants||'#2b2d42', hair=o.hair||'#1b1b1b';
+  const f=o.flip?-1:1;
+  let g=`<g transform="translate(${x},${y}) scale(${s*f},${s})" stroke="${K}" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round">`;
+  // arms (behind body)
+  const arm=(side,pose)=>{const [ax,ay]=ARM[pose]||ARM.down;const sx=side*22,sy=-112;
+    const ex=side*ax, ey=ay;
+    const mx=(sx+ex)/2+side*(pose==='hip'?18:6), my=(sy+ey)/2+(pose==='up'||pose==='wave'?0:6);
+    return `<path d="M${sx},${sy} Q${mx},${my} ${ex},${ey}" fill="none" stroke="${K}" stroke-width="13"/><path d="M${sx},${sy} Q${mx},${my} ${ex},${ey}" fill="none" stroke="${o.saree?skin:shirt}" stroke-width="7"/><circle cx="${ex}" cy="${ey}" r="7" fill="${skin}"/>`};
+  g+=arm(-1,o.armL||'down')+arm(1,o.armR||'down');
+  if(o.saree){
+    g+=`<path d="M-26,-118 Q0,-126 26,-118 L36,0 L-36,0 Z" fill="${o.saree}"/>`;
+    g+=`<path d="M-36,0 L36,0 L34,-10 L-34,-10 Z" fill="${o.border||'#e8b130'}"/>`;
+    g+=`<path d="M-24,-118 L28,-60 L30,-40 L-6,-80 Z" fill="${o.border||'#e8b130'}" stroke-width="2.5"/>`;
+  } else {
+    g+=`<rect x="-19" y="-62" width="16" height="62" rx="5" fill="${pants}"/><rect x="3" y="-62" width="16" height="62" rx="5" fill="${pants}"/>`;
+    g+=`<ellipse cx="-12" cy="0" rx="13" ry="5" fill="${K}"/><ellipse cx="12" cy="0" rx="13" ry="5" fill="${K}"/>`;
+    g+=`<path d="M-26,-118 Q0,-126 26,-118 L23,-56 L-23,-56 Z" fill="${shirt}"/>`;
+    if(o.tie) g+=`<path d="M0,-118 L-5,-100 L0,-74 L5,-100 Z" fill="${o.tie}" stroke-width="2"/>`;
+    if(o.chain) g+=`<path d="M-12,-118 Q0,-96 12,-118" fill="none" stroke="#f4c430" stroke-width="4"/>`;
+    if(o.lanyard) g+=`<path d="M-12,-118 L0,-90 L12,-118" fill="none" stroke="#e63946" stroke-width="3"/><rect x="-8" y="-92" width="16" height="20" rx="2" fill="#fff" stroke-width="2"/>`;
+  }
+  // head
+  g+=`<rect x="-7" y="-130" width="14" height="14" fill="${skin}" stroke="none"/>`;
+  if(o.bun) g+=`<circle cx="0" cy="-185" r="13" fill="${hair}"/>`;
+  g+=`<circle cx="0" cy="-152" r="28" fill="${skin}"/>`;
+  // hair
+  if(o.style==='long') g+=`<path d="M-29,-150 Q-30,-186 0,-184 Q30,-186 29,-150 Q22,-170 0,-168 Q-20,-170 -29,-150 Z" fill="${hair}"/>`;
+  else if(o.style==='bald') g+=`<path d="M-28,-150 Q-30,-160 -24,-164 M28,-150 Q30,-160 24,-164" fill="none" stroke="${hair}" stroke-width="5"/>`;
+  else if(o.style==='parted') g+=`<path d="M-29,-150 Q-32,-184 0,-182 Q30,-184 29,-152 Q20,-170 -2,-172 L-6,-164 Q-18,-168 -29,-150 Z" fill="${hair}"/>`;
+  else g+=`<path d="M-28,-150 Q-30,-185 2,-183 Q30,-182 28,-150 Q24,-166 10,-168 Q-2,-162 -14,-168 Q-24,-164 -28,-150 Z" fill="${hair}"/>`;
+  // eyes
+  const e=o.eyes||'normal';
+  if(e==='shades') g+=`<path d="M-22,-160 L22,-160 L20,-148 Q12,-144 4,-150 L-4,-150 Q-12,-144 -20,-148 Z" fill="${K}"/>`;
+  else if(e==='wide') g+=`<circle cx="-10" cy="-155" r="7" fill="#fff" stroke-width="2.5"/><circle cx="10" cy="-155" r="7" fill="#fff" stroke-width="2.5"/><circle cx="-9" cy="-154" r="2.6" fill="${K}"/><circle cx="11" cy="-154" r="2.6" fill="${K}"/>`;
+  else if(e==='happy') g+=`<path d="M-15,-153 Q-10,-160 -5,-153 M5,-153 Q10,-160 15,-153" fill="none" stroke-width="3"/>`;
+  else if(e==='sly') g+=`<path d="M-16,-155 L-4,-155 M4,-155 L16,-155" stroke-width="3"/><circle cx="-7" cy="-152" r="2.5" fill="${K}"/><circle cx="13" cy="-152" r="2.5" fill="${K}"/>`;
+  else g+=`<circle cx="-10" cy="-155" r="3.2" fill="${K}" stroke="none"/><circle cx="10" cy="-155" r="3.2" fill="${K}" stroke="none"/>`;
+  if(o.worried) g+=`<path d="M-17,-163 L-5,-167 M5,-167 L17,-163" stroke-width="3"/>`;
+  if(o.angry) g+=`<path d="M-17,-167 L-5,-162 M5,-162 L17,-167" stroke-width="3"/>`;
+  if(o.glasses) g+=`<circle cx="-10" cy="-155" r="9" fill="none" stroke-width="2.5"/><circle cx="10" cy="-155" r="9" fill="none" stroke-width="2.5"/><path d="M-1,-156 L1,-156" stroke-width="2.5"/>`;
+  if(o.mustache) g+=`<path d="M-12,-138 Q-6,-144 0,-140 Q6,-144 12,-138 Q6,-136 0,-139 Q-6,-136 -12,-138 Z" fill="${hair}" stroke-width="2"/>`;
+  // mouth
+  const m=o.mouth||'smile';
+  if(m==='smile') g+=`<path d="M-9,-138 Q0,-130 9,-138" fill="none" stroke-width="3"/>`;
+  else if(m==='frown') g+=`<path d="M-9,-133 Q0,-140 9,-133" fill="none" stroke-width="3"/>`;
+  else if(m==='open') g+=`<ellipse cx="0" cy="-135" rx="6" ry="7" fill="#7a1f1f" stroke-width="2.5"/>`;
+  else if(m==='grin') g+=`<path d="M-13,-140 Q0,-124 13,-140 Z" fill="#fff" stroke-width="2.5"/>`;
+  else g+=`<path d="M-8,-136 L8,-136" stroke-width="3"/>`;
+  if(o.bindi) g+=`<circle cx="0" cy="-168" r="2.6" fill="#d00000" stroke="none"/>`;
+  if(o.sweat) g+=`<path d="M30,-172 Q36,-160 30,-156 Q24,-160 30,-172 Z" fill="#7fd1ff" stroke-width="2"/>`;
+  return g+'</g>';
+}
+const txt=(x,y,t,o={})=>`<text x="${x}" y="${y}" font-family="${o.font||'Comic Neue'}" font-weight="700" font-size="${o.fs||16}" fill="${o.fill||K}" stroke="none" text-anchor="${o.anchor||'middle'}" ${o.rot?`transform="rotate(${o.rot} ${x} ${y})"`:''}>${t}</text>`;
+const cyl=(x,y,c='#d62828',label='')=>`<g stroke="${K}" stroke-width="3"><rect x="${x-21}" y="${y-62}" width="42" height="62" rx="12" fill="${c}"/><rect x="${x-8}" y="${y-72}" width="16" height="12" rx="3" fill="#888"/>${label?txt(x,y-26,label,{fs:11,fill:'#fff',font:'Arial'}):''}</g>`;
+const ground=(w,y)=>`<rect x="0" y="${y}" width="${w}" height="40" fill="#e9dcc0"/><line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="${K}" stroke-width="3"/>`;
+
+// P1 Housing
+document.getElementById('p1').innerHTML=
+ ground(334,290)+
+ `<g stroke="${K}" stroke-width="3"><rect x="22" y="236" width="42" height="54" rx="6" fill="#8d5524"/><path d="M34,236 v-8 h18 v8" fill="none"/></g>`+
+ person(95,292,{shirt:'#3a7bd5',worried:true,eyes:'wide',mouth:'open',sweat:true,armL:'down',armR:'out',lanyard:true})+
+ person(245,292,{shirt:'#f4a261',chain:true,eyes:'sly',mouth:'grin',mustache:true,style:'parted',armL:'hold',armR:'hip',flip:true,skin:'#b5764a'})+
+ `<g transform="rotate(-8 190 205)" stroke="${K}" stroke-width="2.5"><rect x="150" y="160" width="60" height="96" fill="#fff"/>${txt(180,182,'BILL',{fs:16})}${txt(180,202,'Brokerage',{fs:13})}${txt(180,224,'45 DAYS',{fs:16,fill:'#d00000'})}${txt(180,244,'RENT',{fs:15})}</g>`+
+ bubble(10,40,190,64,'Renting a flat or buying a portfolio?!',90,120,{fs:16})+
+ bubble(206,52,118,48,'Market rate, sir! 😁',250,116,{fs:15});
+
+// P2 Gas
+document.getElementById('p2').innerHTML=
+ ground(334,290)+
+ `<g stroke="${K}" stroke-width="3"><rect x="112" y="112" width="112" height="44" fill="#fff"/></g>`+txt(168,130,'NEW CONNECTION',{fs:12})+txt(168,149,'❌ NOT AVAILABLE',{fs:12,fill:'#d00000'})+
+ person(80,292,{shirt:'#2a9d8f',mouth:'frown',worried:true,armR:'hold'})+
+ cyl(132,290,'#d62828','EMPTY')+
+ person(262,292,{shirt:'#222',pants:'#444',eyes:'shades',mouth:'smile',armL:'hold',armR:'down',style:'parted',flip:true,skin:'#a86b3c'})+
+ cyl(218,290,'#d62828','FULL')+
+ bubble(170,40,150,58,'Psst… cylinder? Only ₹₹₹ 😎',255,110,{fs:15})+
+ bubble(14,40,140,52,'Then how is HE getting it?!',70,112,{fs:14,thought:true});
+
+// P3 Transport
+document.getElementById('p3').innerHTML=
+ ground(334,290)+
+ `<g stroke="${K}" stroke-width="3"><line x1="250" y1="290" x2="250" y2="130" stroke-width="5"/><rect x="216" y="112" width="68" height="40" rx="6" fill="#2a9d8f"/></g>`+txt(250,138,'BUS STOP',{fs:13,fill:'#fff'})+
+ `<g stroke="#999" stroke-width="1.5" fill="none"><path d="M250,152 l26,0 M250,152 l18,18 M250,152 l0,26 M256,152 a8 8 0 0 1 -6 8 M264,152 a16 16 0 0 1 -14 16"/></g>`+
+ txt(300,280,'🕸️',{fs:22})+txt(286,212,'zzz',{fs:16,fill:'#888',rot:-10})+
+ person(120,292,{shirt:'#e76f51',mouth:'flat',worried:true,armR:'hold',armL:'down'})+
+ `<g stroke="${K}" stroke-width="2.5"><rect x="150" y="182" width="40" height="62" rx="6" fill="#222"/><rect x="154" y="188" width="32" height="48" fill="#ffd23f"/></g>`+txt(170,212,'3×',{fs:18,fill:'#d00000'})+txt(170,229,'surge',{fs:11})+
+ bubble(12,40,200,62,'Bus? What bus? Uber it is… again 😩',115,112,{fs:15});
+
+// P4 Water
+document.getElementById('p4').innerHTML=
+ ground(507,262)+
+ // tower + crane
+ `<g stroke="${K}" stroke-width="3"><rect x="380" y="70" width="70" height="192" fill="#adb5bd"/>`+
+ Array.from({length:8},(_,i)=>`<rect x="390" y="${80+i*22}" width="16" height="12" fill="#fff" stroke-width="2"/><rect x="424" y="${80+i*22}" width="16" height="12" fill="#fff" stroke-width="2"/>`).join('')+
+ `<line x1="470" y1="262" x2="470" y2="30" stroke="#f4a261" stroke-width="7"/><line x1="360" y1="40" x2="500" y2="40" stroke="#f4a261" stroke-width="7"/><line x1="380" y1="40" x2="380" y2="62" stroke-width="2"/><rect x="370" y="60" width="20" height="10" fill="#666" stroke-width="2"/></g>`+
+ // tanker
+ `<g stroke="${K}" stroke-width="3"><rect x="240" y="200" width="110" height="46" rx="20" fill="#4ea8de"/><rect x="200" y="210" width="42" height="36" rx="5" fill="#f4a261"/><rect x="208" y="216" width="20" height="14" fill="#cde" stroke-width="2"/><circle cx="222" cy="250" r="12" fill="#333"/><circle cx="320" cy="250" r="12" fill="#333"/></g>`+txt(295,228,'TANKER ₹₹',{fs:15,fill:'#fff'})+
+ person(115,264,{saree:'#e76f51',border:'#ffd23f',style:'long',hair:'#222',bun:true,bindi:true,mouth:'open',angry:true,armL:'out',armR:'out',skin:'#c68642'})+
+ // bills
+ `<g stroke="${K}" stroke-width="2.5"><g transform="rotate(-18 40 150)"><rect x="22" y="120" width="44" height="56" fill="#fff"/>${txt(44,145,'MAINT',{fs:12})}${txt(44,162,'₹',{fs:16,fill:'#d00000'})}</g>
+ <g transform="rotate(16 190 150)"><rect x="168" y="120" width="44" height="56" fill="#fff"/>${txt(190,145,'WATER',{fs:12})}${txt(190,162,'₹',{fs:16,fill:'#d00000'})}</g></g>`+
+ bubble(14,36,210,58,'Maintenance ✔ Water bill ✔ Tanker ✔ …Water? ❌',115,104,{fs:15})+
+ bubble(250,92,110,46,'+40 more floors! 🏗️',380,110,{fs:14});
+
+// P5 Jugaad
+document.getElementById('p5').innerHTML=
+ ground(507,262)+
+ // shop
+ `<g stroke="${K}" stroke-width="3"><rect x="290" y="22" width="200" height="40" fill="#e63946"/><rect x="290" y="186" width="200" height="76" fill="#bc8a5f"/></g>`+txt(390,50,'SUPER STORES',{fs:20,fill:'#fff',font:'Bangers'})+
+ person(390,262,{shirt:'#ffbe0b',mouth:'grin',eyes:'sly',mustache:true,style:'bald',hair:'#555',armL:'hold',armR:'hold',flip:true,skin:'#b5764a'})+
+ `<rect x="290" y="186" width="200" height="76" fill="#bc8a5f" stroke="${K}" stroke-width="3"/>`+txt(390,232,'MRP? 🤷',{fs:22,font:'Bangers'})+
+ // price tag
+ `<g transform="rotate(-10 250 210)" stroke="${K}" stroke-width="2.5"><rect x="208" y="180" width="90" height="56" rx="6" fill="#fff"/></g>`+
+ `<g transform="rotate(-10 250 210)">${txt(252,200,'MRP ₹100',{fs:14})}<line x1="216" y1="196" x2="290" y2="196" stroke="#d00000" stroke-width="3"/>${txt(252,224,'₹300 😏',{fs:18,fill:'#d00000'})}</g>`+
+ person(110,264,{shirt:'#fff',tie:'#3a7bd5',lanyard:false,eyes:'wide',mouth:'open',worried:true,armL:'down',armR:'hold',style:'parted'})+
+ `<g stroke="${K}" stroke-width="3"><rect x="40" y="190" width="40" height="32" rx="4" fill="#333"/></g>`+txt(60,212,'💻',{fs:14})+
+ bubble(206,108,150,52,'Corporate sir? Special price! 😁',360,140,{fs:15})+
+ bubble(14,36,180,56,'So MRP is just a friendly suggestion?',110,104,{fs:15});
+
+// P6 FM
+const coins=Array.from({length:5},(_,i)=>{const x=560-i*55, y=200-Math.sin(i/4*Math.PI)*60; return `<g transform="translate(${x},${y})"><circle r="15" fill="#f4c430" stroke="${K}" stroke-width="3"/>${txt(0,6,'₹',{fs:16})}</g>`}).join('');
+document.getElementById('p6').innerHTML=
+ ground(1020,330)+
+ // FM
+ person(210,332,{saree:'#7b2cbf',border:'#f4c430',style:'long',hair:'#d9d9d9',bun:true,glasses:true,bindi:true,mouth:'smile',eyes:'happy',armL:'down',armR:'hold',skin:'#a86b3c',s:1.25})+
+ // red budget bahi-khata
+ `<g stroke="${K}" stroke-width="3"><rect x="236" y="200" width="70" height="56" rx="6" fill="#c1121f"/><path d="M236,216 h70" stroke="#f4c430" stroke-width="3"/><circle cx="271" cy="236" r="9" fill="#f4c430" stroke-width="2"/></g>`+txt(271,212,'BUDGET',{fs:11,fill:'#f4c430'})+
+ txt(210,366,'FM Nirmala Sitharaman (cartoon)',{fs:17})+
+ coins+
+ txt(490,192,'INCOME TAX',{fs:17,fill:'#c1121f',rot:-8})+txt(400,195,'GST',{fs:17,fill:'#c1121f',rot:-6})+txt(345,236,'CESS',{fs:17,fill:'#c1121f'})+
+ // salaried employee, pockets out
+ person(640,332,{shirt:'#fff',tie:'#e63946',lanyard:true,mouth:'open',eyes:'wide',worried:true,sweat:true,armL:'out',armR:'up',style:'parted',s:1.2})+
+ `<g stroke="${K}" stroke-width="2.5" fill="#fff"><path d="M614,262 q-12,10 0,22 q10,-6 6,-22 Z"/><path d="M666,262 q12,10 0,22 q-10,-6 -6,-22 Z"/></g>`+
+ txt(640,366,'Salaried employee',{fs:17})+
+ // premium sign
+ `<g stroke="${K}" stroke-width="3"><rect x="770" y="120" width="220" height="190" rx="14" fill="#fff"/><rect x="770" y="120" width="220" height="40" rx="14" fill="#111"/><rect x="770" y="146" width="220" height="14" fill="#111"/></g>`+
+ txt(880,148,'BASIC AMENITIES',{fs:20,fill:'#ffd23f',font:'Bangers'})+
+ txt(800,192,'🚌',{fs:22,anchor:'start'})+txt(836,190,'Buses',{fs:16,anchor:'start'})+txt(960,190,'🔒',{fs:18})+
+ txt(800,224,'💧',{fs:22,anchor:'start'})+txt(836,222,'Water',{fs:16,anchor:'start'})+txt(960,222,'🔒',{fs:18})+
+ txt(800,256,'🏠',{fs:22,anchor:'start'})+txt(836,254,'Fair rent',{fs:16,anchor:'start'})+txt(960,254,'🔒',{fs:18})+
+ `<rect x="796" y="268" width="168" height="30" rx="15" fill="#ff5a36" stroke="${K}" stroke-width="3"/>`+txt(880,289,'UPGRADE TO PREMIUM',{fs:14,fill:'#fff'})+
+ bubble(40,34,320,74,'Income tax ✔ GST ✔ Cess ✔ Surcharge ✔ Thank you for your contribution! 🙏',200,124,{fs:18})+
+ bubble(470,40,270,74,'Paid for everything… so where are the amenities?! 😭',640,130,{fs:19});
+</script>
+</body></html>

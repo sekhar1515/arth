@@ -170,8 +170,8 @@ public class InvestmentPlanService {
 
     // ------------------------------------------------------------------ running installments
 
-    /** After the evening NAV refreshes (23:15 and hourly), apply every installment that has become due. */
-    @Scheduled(cron = "0 50 7,9,23 * * *", zone = "Asia/Kolkata")
+    /** After each NAV check (2:30 am, 7:30 am, 9:30 pm, 11:30 pm), apply every installment that has become due. */
+    @Scheduled(cron = "0 50 2,7,21,23 * * *", zone = "Asia/Kolkata")
     public void runAllDue() {
         for (InvestmentPlan p : plans.findByActiveTrue()) {
             try {
@@ -214,16 +214,22 @@ public class InvestmentPlanService {
         BigDecimal nav = null;
         LocalDate navDate = null;
         BigDecimal units = null;
+        LocalDate allotted = due;
         if (p.getKind() == InvestmentPlan.Kind.SIP) {
             var scheme = h.getSchemeCode() == null ? null : prices.byCode(h.getSchemeCode()).orElse(null);
-            if (scheme == null || scheme.nav() == null || scheme.navDate() == null || scheme.navDate().isBefore(due)) return false;
-            nav = scheme.nav();
-            navDate = scheme.navDate();
+            if (scheme == null || scheme.nav() == null || scheme.navDate() == null || scheme.navDate().isBefore(due)) return false; // NAV not out yet
+            // allotted at the first NAV on or after the due date: the next working day's if it fell on a weekend or holiday
+            var first = prices.firstNavOnOrAfter(h.getSchemeCode(), due)
+                    .orElse(new PriceService.DatedNav(scheme.prevNavDate() != null && !scheme.prevNavDate().isBefore(due) ? scheme.prevNavDate() : scheme.navDate(),
+                            scheme.prevNavDate() != null && !scheme.prevNavDate().isBefore(due) ? scheme.prevNav() : scheme.nav()));
+            nav = first.nav();
+            navDate = first.date();
+            allotted = navDate;
             units = p.getAmount().divide(nav, 3, RoundingMode.DOWN); // funds allot units to 3 decimals
             h.setUnits((h.getUnits() == null ? BigDecimal.ZERO : h.getUnits()).add(units).setScale(6, RoundingMode.HALF_UP));
             h.setInvestedAmount((h.getInvestedAmount() == null ? BigDecimal.ZERO : h.getInvestedAmount()).add(p.getAmount()));
-            if (h.getPriceAsOf() == null || navDate.atTime(23, 0).atZone(TimeConfig.IST).toInstant().isAfter(h.getPriceAsOf())) {
-                h.applyPrice(nav, navDate.atTime(23, 0).atZone(TimeConfig.IST).toInstant(), Holding.PriceSource.AMFI);
+            if (h.getPriceAsOf() == null || scheme.navDate().atTime(23, 0).atZone(TimeConfig.IST).toInstant().isAfter(h.getPriceAsOf())) {
+                h.applyPrice(scheme.nav(), scheme.navDate().atTime(23, 0).atZone(TimeConfig.IST).toInstant(), Holding.PriceSource.AMFI);
             }
         } else {
             BigDecimal add = p.total();
@@ -234,19 +240,19 @@ public class InvestmentPlanService {
         transactions.flush(); // the debit must be in the database before the installment row points at it
         UUID installmentId = UUID.randomUUID();
         int added = jdbc.update("""
-                INSERT INTO investment_installments (id, plan_id, user_id, due_date, amount, nav, nav_date, units, transaction_id)
-                VALUES (:id, :plan, :user, :due, :amount, :nav, :navDate, :units, :txn)
+                INSERT INTO investment_installments (id, plan_id, user_id, due_date, amount, nav, nav_date, units, transaction_id, allotted_on)
+                VALUES (:id, :plan, :user, :due, :amount, :nav, :navDate, :units, :txn, :allotted)
                 ON CONFLICT (plan_id, due_date) DO NOTHING
                 """, new MapSqlParameterSource().addValue("id", installmentId).addValue("plan", p.getId()).addValue("user", p.getUserId())
                 .addValue("due", due).addValue("amount", p.total()).addValue("nav", nav).addValue("navDate", navDate).addValue("units", units)
-                .addValue("txn", txnId));
+                .addValue("txn", txnId).addValue("allotted", allotted));
         if (added > 0) {
             // each installment is also a purchase in the holding's history (exact XIRR, per-purchase returns)
             jdbc.update("""
                     INSERT INTO holding_lots (id, user_id, holding_id, trade_date, kind, amount, units, price, source, installment_id)
                     VALUES (:id, :u, :h, :d, 'BUY', :a, :units, :price, 'SIP', :inst)
                     """, new MapSqlParameterSource().addValue("id", UUID.randomUUID()).addValue("u", p.getUserId()).addValue("h", h.getId())
-                    .addValue("d", due).addValue("a", p.total()).addValue("units", units).addValue("price", nav).addValue("inst", installmentId));
+                    .addValue("d", allotted).addValue("a", p.total()).addValue("units", units).addValue("price", nav).addValue("inst", installmentId));
         }
         p.setLastRunDate(due);
         return true;
@@ -300,7 +306,7 @@ public class InvestmentPlanService {
         LocalDate next = p.isActive() ? nextDue(p, p.getLastRunDate()) : null;
         String waiting = null;
         if (next != null && !next.isAfter(TimeConfig.today(clock)) && p.getKind() == InvestmentPlan.Kind.SIP) {
-            waiting = "Waiting for the " + InrDates.shortDate(next) + " NAV from AMFI (usually out by 10 pm).";
+            waiting = "Waiting for the " + InrDates.shortDate(next) + " NAV from AMFI (most funds by 10 pm, international funds after midnight).";
         }
         return new PlanDto(p.getId(), p.getKind(), p.getHoldingId(), h == null ? "(deleted)" : h.getName(), h == null ? null : h.getAssetClass(),
                 p.getAmount(), p.getEmployerAmount(), p.total(), p.getDayOfMonth(), p.getStartDate(), p.getEndDate(), p.getAccountId(), accountName,

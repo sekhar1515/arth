@@ -81,8 +81,12 @@ public class PriceService {
         this.scheduleEnabled = scheduleEnabled;
     }
 
-    /** Funds report the day's NAV to AMFI through the evening (and a few the next morning): pick them up hourly. */
-    @Scheduled(cron = "0 15 7,9,19-23 * * *", zone = "Asia/Kolkata")
+    /**
+     * Most Indian funds publish the day's NAV by about 10 pm; funds holding US/international stocks and fund-of-funds
+     * publish after midnight. Main check at 2:30 am (gets everything), evening checks so most funds update the same
+     * night, and a 7:30 am catch-up for stragglers.
+     */
+    @Scheduled(cron = "0 30 2,7,21,23 * * *", zone = "Asia/Kolkata")
     public void scheduledRefresh() {
         if (scheduleEnabled) refreshMutualFunds();
     }
@@ -130,6 +134,7 @@ public class PriceService {
             jdbc.batchUpdate(UPSERT_SCHEME, batch.subList(i, Math.min(i + 2000, batch.size())).toArray(new SqlParameterSource[0]));
         }
         int updated = repriceFundHoldings();
+        recordHistory();
         if (events != null) events.publishEvent(new PricesUpdatedEvent("fund NAVs"));
         return remember(new RefreshResult(true, records.size(), updated, latest, "Loaded " + records.size() + " schemes", Instant.now()));
     }
@@ -219,6 +224,33 @@ public class PriceService {
     public Optional<Instant> lastLoadedAt() {
         return Optional.ofNullable(jdbc.queryForObject("SELECT max(updated_at) FROM mf_schemes", new MapSqlParameterSource(), java.sql.Timestamp.class))
                 .map(java.sql.Timestamp::toInstant);
+    }
+
+    /** Keeps each held fund's NAVs by date (latest and previous), for allotting SIPs on the right day. */
+    void recordHistory() {
+        for (String col : new String[]{"nav, nav_date", "prev_nav, prev_nav_date"}) {
+            String[] c = col.split(", ");
+            jdbc.update("INSERT INTO mf_nav_history (scheme_code, nav_date, nav) SELECT scheme_code, " + c[1] + ", " + c[0]
+                    + " FROM mf_schemes WHERE " + c[0] + " IS NOT NULL AND " + c[1] + " IS NOT NULL"
+                    + " AND scheme_code IN (SELECT scheme_code FROM holdings WHERE scheme_code IS NOT NULL) ON CONFLICT DO NOTHING",
+                    new MapSqlParameterSource());
+        }
+    }
+
+    public record DatedNav(LocalDate date, BigDecimal nav) {
+    }
+
+    /**
+     * The first NAV published on or after {@code date}: what a SIP due that day is allotted at. Weekends and market
+     * holidays have no NAV, so this is the next working day's. Empty if it isn't known yet.
+     */
+    public Optional<DatedNav> firstNavOnOrAfter(String schemeCode, LocalDate date) {
+        List<DatedNav> out = new ArrayList<>();
+        jdbc.query("SELECT nav_date, nav FROM mf_nav_history WHERE scheme_code = :c AND nav_date >= :d ORDER BY nav_date LIMIT 1",
+                new MapSqlParameterSource().addValue("c", schemeCode).addValue("d", date), rs -> {
+                    out.add(new DatedNav(rs.getObject(1, LocalDate.class), rs.getBigDecimal(2)));
+                });
+        return out.stream().findFirst();
     }
 
     public Optional<Scheme> byCode(String code) {

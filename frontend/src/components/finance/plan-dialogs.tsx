@@ -38,10 +38,16 @@ function BankSelect({ value, onChange, hint }: { value: string; onChange: (v: st
 }
 
 /** Add or change a SIP (fund) or monthly contribution (PF/EPF, PPF, NPS…). */
-export function PlanDialog({ holding, plan, open, onOpenChange }: { holding: Holding; plan?: InvestmentPlan; open: boolean; onOpenChange: (o: boolean) => void }) {
+export function PlanDialog({ holding: given, holdings = [], kind: wanted, plan, open, onOpenChange }: {
+  holding?: Holding; holdings?: Holding[]; kind?: "SIP" | "CONTRIBUTION"; plan?: InvestmentPlan; open: boolean; onOpenChange: (o: boolean) => void;
+}) {
   const invalidate = useInvalidateWealth();
-  const kind = plan?.kind ?? planKindFor(holding) ?? "CONTRIBUTION";
-  const pf = holding.assetClass === "EPF";
+  const kind = plan?.kind ?? (given ? planKindFor(given) : null) ?? wanted ?? "SIP";
+  // which investment this goes into: any of your funds for a SIP, anything valued by hand for a contribution
+  const options = holdings.filter((h) => planKindFor(h) === kind);
+  const [selectedId, setSelectedId] = useState(given?.id ?? options.find((h) => kind !== "SIP" || h.schemeCode)?.id ?? options[0]?.id ?? "");
+  const holding = given?.id === selectedId ? given : options.find((h) => h.id === selectedId) ?? given;
+  const pf = holding?.assetClass === "EPF";
   const [f, setF] = useState({
     amount: plan?.amount?.toString() ?? "", employerAmount: plan?.employerAmount?.toString() ?? "",
     dayOfMonth: String(plan?.dayOfMonth ?? 5), accountId: plan?.accountId ?? "", endDate: plan?.endDate ?? "",
@@ -52,6 +58,7 @@ export function PlanDialog({ holding, plan, open, onOpenChange }: { holding: Hol
 
   async function save() {
     setBusy(true);
+    if (!holding) return;
     const body = {
       holdingId: holding.id, kind, amount: f.amount || null, employerAmount: f.employerAmount || "0", dayOfMonth: Number(f.dayOfMonth),
       accountId: f.accountId || null, endDate: f.endDate || null, version: plan?.version,
@@ -71,11 +78,27 @@ export function PlanDialog({ holding, plan, open, onOpenChange }: { holding: Hol
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={`${plan ? "Change" : "Add"} ${kind === "SIP" ? "SIP" : "monthly contribution"}: ${holding.name}`}
+      <DialogContent title={`${plan ? "Change" : "Add"} ${kind === "SIP" ? "SIP" : "monthly contribution"}${plan && holding ? `: ${holding.name}` : ""}`}
         description={kind === "SIP"
           ? "On each SIP date Arth adds the units at that day's NAV and takes the amount out of the bank account you pick."
           : pf ? "Your PF grows each month by your contribution plus your employer's. It comes out of your salary, so no bank account is needed."
             : "On each date Arth adds the amount to this investment's value and, if you pick a bank account, takes it out of that account."}>
+        {!plan && (options.length > 0 || given) && (
+          <div className="mb-4"><Field label={kind === "SIP" ? "Fund" : "Investment"} htmlFor="plan-holding">
+            <Select id="plan-holding" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
+              {(options.length > 0 ? options : given ? [given] : []).map((h) => (
+                <option key={h.id} value={h.id} disabled={kind === "SIP" && !h.schemeCode}>
+                  {h.name}{kind === "SIP" && !h.schemeCode ? " (link to AMFI first: ⋯ → Get latest price)" : ""}
+                </option>
+              ))}
+            </Select>
+          </Field></div>
+        )}
+        {!holding && (
+          <p className="mb-4 rounded-2xl bg-surface-2 p-3 text-sm text-ink-2">
+            {kind === "SIP" ? "Add the fund first (Investments → Fund or stock), then set up its SIP." : "Add the investment first (e.g. PF / EPF), then its monthly contribution."}
+          </p>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={pf ? "Your contribution" : "Amount"} htmlFor="plan-amount" hint={pf ? "Employee share, from your payslip" : undefined}>
             <Input id="plan-amount" inputMode="decimal" className="num" value={f.amount} onChange={(e) => set({ amount: num(e.target.value) })} autoFocus />
@@ -101,10 +124,10 @@ export function PlanDialog({ holding, plan, open, onOpenChange }: { holding: Hol
         <p className="mt-4 rounded-2xl bg-surface-2 p-3 text-xs text-ink-2">
           {total > 0 ? <><strong className="num text-ink">{inr(total)}</strong> goes in on the {ordinal(Number(f.dayOfMonth))} of every month. </> : null}
           {kind === "SIP"
-            ? "The units you entered should already include your past SIPs: Arth adds SIPs from the next date on."
+            ? "The units you entered should already include your past SIPs: Arth adds SIPs from the next date on. If the date falls on a weekend or market holiday, units come at the next working day's NAV (as your fund house does)."
             : "The balance you entered should already include past contributions: Arth adds them from the next date on."}
         </p>
-        <Button className="mt-4 w-full" disabled={busy || !f.amount} onClick={save}>{plan ? "Save changes" : kind === "SIP" ? "Add SIP" : "Add monthly contribution"}</Button>
+        <Button className="mt-4 w-full" disabled={busy || !f.amount || !holding} onClick={save}>{plan ? "Save changes" : kind === "SIP" ? "Add SIP" : "Add monthly contribution"}</Button>
       </DialogContent>
     </Dialog>
   );

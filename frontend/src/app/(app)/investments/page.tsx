@@ -30,7 +30,7 @@ export default function InvestmentsPage() {
   const [dialog, setDialog] = useState<null | "asset" | "import" | "pf">(null);
   const [editHolding, setEditHolding] = useState<Holding | null>(null);
   const [updateHolding, setUpdateHolding] = useState<Holding | null>(null);
-  const [planFor, setPlanFor] = useState<{ holding: Holding; plan?: InvestmentPlan } | null>(null);
+  const [planFor, setPlanFor] = useState<{ holding?: Holding; plan?: InvestmentPlan; kind?: "SIP" | "CONTRIBUTION" } | null>(null);
   const [xirrFor, setXirrFor] = useState<Holding | null>(null);
   const [lotsFor, setLotsFor] = useState<Holding | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -122,7 +122,7 @@ export default function InvestmentsPage() {
       {/* where the prices come from, and as of when */}
       <div className="-mt-3 mb-5 rounded-2xl bg-surface-2 px-4 py-3 text-[13px] text-ink-2">
         <div className="flex flex-wrap gap-x-5 gap-y-1">
-          <span><strong className="text-ink">Fund NAVs as of {short(st?.latestNavDate ?? null)}</strong>: refreshed automatically every evening once AMFI publishes the day&apos;s NAV.</span>
+          <span><strong className="text-ink">Fund NAVs as of {short(st?.latestNavDate ?? null)}</strong>: refreshed automatically at 9:30 pm and 11:30 pm, and at 2:30 am for funds holding US/international stocks (their NAV comes after midnight).</span>
           <span><strong className="text-ink">Stock prices as of {short(st?.latestCloseDate ?? null)} close</strong>: on working days, the value after 3:45 pm is that day&apos;s closing price.</span>
         </div>
         <p className="mt-1.5 text-xs text-ink-3">
@@ -154,8 +154,7 @@ export default function InvestmentsPage() {
             <div className="grid grid-cols-2 gap-3 sm:col-span-2 sm:grid-cols-4">
               <QuickAdd icon={<TrendingUp />} label="Fund or stock" onClick={() => setDialog("asset")} />
               <QuickAdd icon={<Repeat />} label="SIP" onClick={() => {
-                const fund = (holdings.data ?? []).find((h) => planKindFor(h) === "SIP");
-                if (fund) setPlanFor({ holding: fund });
+                if ((holdings.data ?? []).some((h) => planKindFor(h) === "SIP")) setPlanFor({ kind: "SIP" });
                 else toast("Add the fund first (Fund or stock), then set up its SIP.");
               }} />
               <QuickAdd icon={<Briefcase />} label="PF / EPF" onClick={() => setDialog("pf")} />
@@ -223,7 +222,8 @@ export default function InvestmentsPage() {
                     <p className="mt-3 text-xs">
                       {!p.active ? <span className="rounded-full bg-surface-2 px-2 py-0.5 text-ink-2">Paused</span>
                         : p.waiting ? <span className="text-marigold-ink">{p.waiting}</span>
-                          : p.nextDue ? <span className="text-ink-2">Next on <strong className="text-ink">{formatDate(p.nextDue, { weekday: "short", day: "numeric", month: "short" })}</strong></span> : <span className="text-ink-3">Ended</span>}
+                          : p.nextDue ? <span className="text-ink-2">Next on <strong className="text-ink">{formatDate(p.nextDue, { weekday: "short", day: "numeric", month: "short" })}</strong>
+                            {p.kind === "SIP" && [0, 6].includes(new Date(p.nextDue + "T12:00:00+05:30").getDay()) && <span className="text-ink-3"> · a weekend, so units at Monday&apos;s NAV</span>}</span> : <span className="text-ink-3">Ended</span>}
                     </p>
                     {p.installments.length > 0 && (
                       <ul className="mt-3 space-y-1 border-t border-line pt-3">
@@ -266,7 +266,7 @@ export default function InvestmentsPage() {
       {dialog === "pf" && <PfDialog open onOpenChange={(o) => !o && setDialog(null)} />}
       {editHolding && <HoldingDialog holding={editHolding} open onOpenChange={(o) => !o && setEditHolding(null)} />}
       {updateHolding && <UpdateValueDialog holding={updateHolding} open onOpenChange={(o) => !o && setUpdateHolding(null)} />}
-      {planFor && <PlanDialog holding={planFor.holding} plan={planFor.plan} open onOpenChange={(o) => !o && setPlanFor(null)} />}
+      {planFor && <PlanDialog holding={planFor.holding} holdings={holdings.data ?? []} kind={planFor.kind} plan={planFor.plan} open onOpenChange={(o) => !o && setPlanFor(null)} />}
       {xirrFor && <XirrDialog holding={xirrFor} open onOpenChange={(o) => !o && setXirrFor(null)} onPurchases={() => { setLotsFor(xirrFor); setXirrFor(null); }} />}
       {lotsFor && <PurchasesDialog holding={lotsFor} open onOpenChange={(o) => !o && setLotsFor(null)} />}
       {confirmDialog}
