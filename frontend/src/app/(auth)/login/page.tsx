@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, serverWake } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 
@@ -18,7 +18,10 @@ export default function LoginPage() {
   const [demo, setDemo] = useState<{ email: string; password: string } | null>(null);
   const [needCode, setNeedCode] = useState(false);
   const [code, setCode] = useState("");
+  const [waking, setWaking] = useState(false);
+  useEffect(() => serverWake.subscribe(setWaking), []);
 
+  // also wakes the server up while you type, so signing in is quick
   useEffect(() => {
     api.get<{ enabled: boolean; email?: string; password?: string }>("/auth/demo-info")
       .then((d) => d.enabled && d.email && setDemo({ email: d.email, password: d.password ?? "" }))
@@ -67,7 +70,7 @@ export default function LoginPage() {
         )}
         {error && <p role="alert" className="text-sm text-out">{error}</p>}
         <Button type="submit" size="lg" className="w-full" disabled={busy}>
-          {busy ? "Signing in…" : "Sign in"}
+          {busy ? (waking ? "Waking up the server…" : "Signing in…") : "Sign in"}
         </Button>
       </form>
       {demo && (
