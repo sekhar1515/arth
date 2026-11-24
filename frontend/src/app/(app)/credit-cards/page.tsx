@@ -9,6 +9,7 @@ import { Stat } from "@/components/finance/meter";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 import { EmptyState, ErrorState, Pill, Skeleton } from "@/components/ui/states";
 import { useCards, useInvalidatePlanning } from "@/hooks/planning";
 import { api, ApiError } from "@/lib/api";
@@ -165,14 +166,14 @@ function CardDialog({ card, onClose }: { card: CreditCard; onClose: () => void }
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent title={`${card.name} details`} description="From your card statement or the bank's app. Arth never asks for card numbers, CVV or passwords.">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Credit limit (₹)" htmlFor="c-limit"><Input id="c-limit" inputMode="decimal" value={f.creditLimit} onChange={set("creditLimit")} /></Field>
+          <Field label="Credit limit (₹)" htmlFor="c-limit"><AmountInput id="c-limit" value={f.creditLimit} onValueChange={(v) => setF({ ...f, creditLimit: v })} /></Field>
           <Field label="Statement day" htmlFor="c-sday" hint="Day of the month, 1 to 28"><Input id="c-sday" inputMode="numeric" value={f.statementDay} onChange={set("statementDay")} /></Field>
           <Field label="Due days after statement" htmlFor="c-due" hint="Usually 15 to 20"><Input id="c-due" inputMode="numeric" value={f.dueDaysAfter} onChange={set("dueDaysAfter")} /></Field>
           <Field label="Minimum due (%)" htmlFor="c-min" hint={`At least ₹${f.minDueFloor || 0}`}><Input id="c-min" inputMode="decimal" value={f.minDuePct} onChange={set("minDuePct")} /></Field>
           <Field label="Reward points balance" htmlFor="c-pts"><Input id="c-pts" inputMode="decimal" value={f.rewardPoints} onChange={set("rewardPoints")} /></Field>
           <Field label="Points per ₹100 spent" htmlFor="c-rate"><Input id="c-rate" inputMode="decimal" value={f.rewardRate} onChange={set("rewardRate")} /></Field>
           <Field label="Value of one point (₹)" htmlFor="c-val"><Input id="c-val" inputMode="decimal" value={f.rewardPointValue} onChange={set("rewardPointValue")} /></Field>
-          <Field label="Annual fee (₹)" htmlFor="c-fee"><Input id="c-fee" inputMode="decimal" value={f.annualFee} onChange={set("annualFee")} /></Field>
+          <Field label="Annual fee (₹)" htmlFor="c-fee"><AmountInput id="c-fee" value={f.annualFee} onValueChange={(v) => setF({ ...f, annualFee: v })} /></Field>
           <Button className="sm:col-span-2" disabled={busy || !f.creditLimit || !f.statementDay} onClick={save}>Save details</Button>
         </div>
       </DialogContent>

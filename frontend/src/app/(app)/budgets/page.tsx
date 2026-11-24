@@ -17,6 +17,7 @@ import { api, ApiError } from "@/lib/api";
 import { inr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Budget, BudgetPeriod, BudgetState, Category } from "@/types/api";
+import { AmountInput } from "@/components/ui/amount-input";
 
 const STATE: Record<BudgetState, { label: string; tone: "brand" | "attention" | "out" | "in" }> = {
   ON_TRACK: { label: "On track", tone: "in" },
@@ -213,7 +214,7 @@ function BudgetDialog({ budget, categories, onClose }: { budget: Budget | null; 
             </Select>
           </Field>
           <Field label="Limit (₹)" htmlFor="b-amount">
-            <Input id="b-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="8000" />
+            <AmountInput id="b-amount" value={amount} onValueChange={(v) => setAmount(v)} placeholder="8000" />
           </Field>
           {suggestion && (
             suggestion.recommended ? (

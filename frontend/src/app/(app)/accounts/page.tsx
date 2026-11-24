@@ -15,6 +15,7 @@ import { api, ApiError } from "@/lib/api";
 import { inr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Account, AccountDeleteResult, AccountType } from "@/types/api";
+import { AmountInput } from "@/components/ui/amount-input";
 
 const TYPE_META: Record<AccountType, { label: string; icon: typeof Landmark }> = {
   BANK: { label: "Bank account", icon: Landmark },
@@ -64,7 +65,7 @@ function AccountDialog({ account, open, onOpenChange }: { account?: Account; ope
           <Field label="Bank or issuer" htmlFor="a-inst"><Input id="a-inst" value={form.institution} onChange={(e) => setForm({ ...form, institution: e.target.value })} placeholder="HDFC Bank" /></Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label={form.type === "CREDIT_CARD" ? "Outstanding on start date (negative)" : "Balance on start date"} htmlFor="a-open">
-              <Input id="a-open" inputMode="decimal" className="num" value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: e.target.value.replace(/[^0-9.-]/g, "") })} placeholder="0.00" />
+              <AmountInput id="a-open" allowNegative className="num" value={form.openingBalance} onValueChange={(v) => setForm({ ...form, openingBalance: v })} placeholder="0.00" />
             </Field>
             <Field label="Start date" htmlFor="a-date"><Input id="a-date" type="date" value={form.openingDate} onChange={(e) => setForm({ ...form, openingDate: e.target.value })} /></Field>
           </div>

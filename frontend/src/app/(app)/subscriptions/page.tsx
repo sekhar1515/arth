@@ -15,6 +15,7 @@ import { api, ApiError } from "@/lib/api";
 import { formatDate, inr, isoDay } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Frequency, Recurring, RecurringKind } from "@/types/api";
+import { AmountInput } from "@/components/ui/amount-input";
 
 const KIND_LABEL: Record<RecurringKind, string> = {
   SUBSCRIPTION: "Subscription", BILL: "Bill", EMI: "EMI", RENT: "Rent", INSURANCE: "Insurance", SIP: "SIP / investment", INCOME: "Income", OTHER: "Other",
@@ -231,7 +232,7 @@ function RecurringDialog({ item, onClose }: { item: Recurring | null; onClose: (
               {(Object.keys(FREQ_LABEL) as Frequency[]).map((k) => <option key={k} value={k}>{FREQ_LABEL[k].replace("every ", "Every ")}</option>)}
             </Select>
           </Field>
-          <Field label="Amount (₹)" htmlFor="r-amt"><Input id="r-amt" inputMode="decimal" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value.replace(/[^0-9.]/g, "") })} /></Field>
+          <Field label="Amount (₹)" htmlFor="r-amt"><AmountInput id="r-amt" value={f.amount} onValueChange={(v) => setF({ ...f, amount: v })} /></Field>
           <Field label="Next due" htmlFor="r-due"><Input id="r-due" type="date" value={f.nextDue} onChange={(e) => setF({ ...f, nextDue: e.target.value })} /></Field>
           <Field label="Remind me (days before)" htmlFor="r-rem"><Input id="r-rem" inputMode="numeric" value={f.reminderDays} onChange={(e) => setF({ ...f, reminderDays: e.target.value.replace(/\D/g, "") })} /></Field>
           <Field label="Note" htmlFor="r-note"><Input id="r-note" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>

@@ -11,6 +11,7 @@ import { useInvalidateWealth } from "@/hooks/queries";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 
 const err = (e: unknown) => (e instanceof ApiError ? [e.message, ...e.details].join(". ") : "Something went wrong");
 const num = (v: string) => v.replace(/[^0-9.]/g, "");
@@ -217,7 +218,7 @@ export function HoldingDialog({ holding, owner: initialOwner = "SELF", open, onO
                     <Input id="h-price" inputMode="decimal" className="num" value={f.currentPrice} onChange={(e) => set({ currentPrice: num(e.target.value) })} />
                   </Field>
                   <Field label="Amount invested" htmlFor="h-invested" hint="Used to show your gain">
-                    <Input id="h-invested" inputMode="decimal" className="num" value={f.investedAmount} onChange={(e) => set({ investedAmount: num(e.target.value) })} />
+                    <AmountInput id="h-invested" className="num" value={f.investedAmount} onValueChange={(v) => set({ investedAmount: v })} />
                   </Field>
                   {LISTED.includes(cls) && (
                     <Field label="Symbol (optional)" htmlFor="h-symbol"><Input id="h-symbol" value={f.symbol} onChange={(e) => set({ symbol: e.target.value.toUpperCase() })} /></Field>
@@ -227,7 +228,7 @@ export function HoldingDialog({ holding, owner: initialOwner = "SELF", open, onO
               {effectiveMethod === "MANUAL" && (
                 <>
                   <Field label="Current value" htmlFor="h-value" hint="Update it whenever you check your passbook or statement">
-                    <Input id="h-value" inputMode="decimal" className="num" value={f.manualValue} onChange={(e) => set({ manualValue: num(e.target.value) })} />
+                    <AmountInput id="h-value" className="num" value={f.manualValue} onValueChange={(v) => set({ manualValue: v })} />
                   </Field>
                   <Field label="Interest rate (% a year, optional)" htmlFor="h-mrate"
                     hint={cls === "EPF" ? "EPF: 8.25% (FY 2024-25). Added monthly, credited each March" : cls === "PPF" ? "PPF: 7.1% now. Added monthly, credited each March" : "Leave empty if it doesn't earn a fixed rate"}>
@@ -235,14 +236,14 @@ export function HoldingDialog({ holding, owner: initialOwner = "SELF", open, onO
                       onChange={(e) => set({ interestRate: num(e.target.value) })} />
                   </Field>
                   <Field label="Amount invested / bought for (optional)" htmlFor="h-cost">
-                    <Input id="h-cost" inputMode="decimal" className="num" value={f.investedAmount} onChange={(e) => set({ investedAmount: num(e.target.value) })} />
+                    <AmountInput id="h-cost" className="num" value={f.investedAmount} onValueChange={(v) => set({ investedAmount: v })} />
                   </Field>
                 </>
               )}
               {effectiveMethod === "FIXED_RATE" && (
                 <>
                   <Field label="Amount deposited" htmlFor="h-principal">
-                    <Input id="h-principal" inputMode="decimal" className="num" value={f.investedAmount} onChange={(e) => set({ investedAmount: num(e.target.value) })} />
+                    <AmountInput id="h-principal" className="num" value={f.investedAmount} onValueChange={(v) => set({ investedAmount: v })} />
                   </Field>
                   <Field label="Interest rate (% a year)" htmlFor="h-rate">
                     <Input id="h-rate" inputMode="decimal" className="num" value={f.interestRate} onChange={(e) => set({ interestRate: num(e.target.value) })} />
@@ -389,7 +390,7 @@ export function UpdateValueDialog({ holding, open, onOpenChange }: { holding: Ho
         )}
         {typing && !result && (
           <div className={fetchable ? "mt-4 border-t border-line pt-4" : undefined}>
-            <Input inputMode="decimal" className="num text-lg" value={v} onChange={(e) => setV(num(e.target.value))} aria-label={manual ? "Value" : "Price per unit"} autoFocus={!fetchable} />
+            <AmountInput className="num text-lg" value={v} onValueChange={(v) => setV(v)} aria-label={manual ? "Value" : "Price per unit"} autoFocus={!fetchable} />
             {!manual && holding.units != null && <p className="mt-2 text-sm text-ink-2">Worth {inr(Number(v || 0) * holding.units)}</p>}
             {fetchable && <p className="mt-2 text-xs text-ink-3">A price you type is kept until the next official {priceWord} comes out.</p>}
             <Button className="mt-4 w-full" variant={fetchable ? "outline" : undefined} disabled={!v} onClick={saveTyped}>Save this price</Button>
@@ -425,11 +426,11 @@ export function LiabilityDialog({ liability, open, onOpenChange }: { liability?:
             </Select>
           </Field>
           <Field label="Name" htmlFor="l-name"><Input id="l-name" value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="SBI home loan" /></Field>
-          <Field label="Still owed today" htmlFor="l-out"><Input id="l-out" inputMode="decimal" className="num" value={f.outstanding} onChange={(e) => set({ outstanding: num(e.target.value) })} /></Field>
-          <Field label="Original loan amount" htmlFor="l-principal"><Input id="l-principal" inputMode="decimal" className="num" value={f.principal} onChange={(e) => set({ principal: num(e.target.value) })} /></Field>
+          <Field label="Still owed today" htmlFor="l-out"><AmountInput id="l-out" className="num" value={f.outstanding} onValueChange={(v) => set({ outstanding: v })} /></Field>
+          <Field label="Original loan amount" htmlFor="l-principal"><AmountInput id="l-principal" className="num" value={f.principal} onValueChange={(v) => set({ principal: v })} /></Field>
           <Field label="Lender" htmlFor="l-lender"><Input id="l-lender" value={f.lender} onChange={(e) => set({ lender: e.target.value })} /></Field>
           <Field label="Interest rate (%)" htmlFor="l-rate"><Input id="l-rate" inputMode="decimal" className="num" value={f.interestRate} onChange={(e) => set({ interestRate: num(e.target.value) })} /></Field>
-          <Field label="EMI" htmlFor="l-emi"><Input id="l-emi" inputMode="decimal" className="num" value={f.emi} onChange={(e) => set({ emi: num(e.target.value) })} /></Field>
+          <Field label="EMI" htmlFor="l-emi"><AmountInput id="l-emi" className="num" value={f.emi} onValueChange={(v) => set({ emi: v })} /></Field>
           <Field label="Last EMI date" htmlFor="l-end"><Input id="l-end" type="date" value={f.endDate} onChange={(e) => set({ endDate: e.target.value })} /></Field>
         </div>
         <Button className="mt-5 w-full" disabled={!f.name || !f.outstanding} onClick={async () => {

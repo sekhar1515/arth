@@ -14,6 +14,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input, Select } from "@/components/ui/input";
 import { ErrorState, Skeleton } from "@/components/ui/states";
 import { Gain, XirrBadge } from "@/components/finance/wealth-parts";
+import { AmountInput } from "@/components/ui/amount-input";
 
 type Lot = {
   id: string; date: string; kind: "BUY" | "SELL"; amount: number; units: number | null; price: number | null; source: "MANUAL" | "SIP"; note: string | null;
@@ -157,7 +158,7 @@ export function PurchasesDialog({ holding, open, onOpenChange }: { holding: Hold
                     <Select aria-label="Bought or sold" value={d.kind} onChange={(e) => setDraft(i, { kind: e.target.value as "BUY" | "SELL" })}>
                       <option value="BUY">Bought</option><option value="SELL">Sold</option>
                     </Select>
-                    <Input inputMode="decimal" className="num" placeholder="Amount ₹" aria-label="Amount" value={d.amount} onChange={(e) => setDraft(i, { amount: num(e.target.value) })} />
+                    <AmountInput className="num" placeholder="Amount ₹" aria-label="Amount" value={d.amount} onValueChange={(v) => setDraft(i, { amount: v })} />
                     <Input inputMode="decimal" className="num" placeholder="Units" aria-label="Units" value={d.units} onChange={(e) => setDraft(i, { units: num(e.target.value) })} />
                     <Input inputMode="decimal" className="num" placeholder="Price ₹" aria-label="Price per unit" value={d.price} onChange={(e) => setDraft(i, { price: num(e.target.value) })} />
                   </div>
