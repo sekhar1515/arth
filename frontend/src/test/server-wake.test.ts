@@ -23,6 +23,26 @@ describe("sleeping server", () => {
     off();
   });
 
+  it("treats a 429 from the host (no Arth error body) as still waking", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("", { status: 429, headers: { "Retry-After": "1" } }))
+      .mockResolvedValueOnce(json({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    const p = api.post("/auth/login", { email: "a@b.in", password: "x" });
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows Arth's own 'too many attempts' message without retrying", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json({ error: { code: "RATE_LIMITED", message: "Too many sign-in attempts. Try again in 15 minutes.", details: [] } }, 429));
+    vi.stubGlobal("fetch", fetchMock);
+    const err = await api.post("/auth/login", {}).catch((e) => e);
+    expect((err as ApiError).message).toMatch(/Too many sign-in attempts/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("doesn't repeat a change that may have gone through", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("Bad gateway", { status: 502 }));
     vi.stubGlobal("fetch", fetchMock);

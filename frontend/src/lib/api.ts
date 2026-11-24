@@ -25,7 +25,8 @@ export function qs(params: Query = {}): string {
  * connection. Requests that are safe to repeat (reads, signing in/out) are retried until the server answers, and
  * {@link serverWake} tells the UI so it can say what's going on instead of looking stuck.
  */
-const WAKE_STATUSES = new Set([502, 503, 504]);
+// 429 too: while the free server is asleep or waking, Render's front door answers 429/503 itself (no Arth error body)
+const WAKE_STATUSES = new Set([429, 502, 503, 504]);
 const WAKE_DEADLINE_MS = 150_000;
 const RETRYABLE_POSTS = new Set(["/auth/login", "/auth/logout"]);
 
@@ -61,12 +62,22 @@ async function send(method: string, path: string, body: unknown, init?: RequestI
   }
 }
 
-/** A 502/503/504 or dropped connection that came from the host/proxy, not an error answered by Arth itself. */
+/**
+ * A 429/502/503/504 or dropped connection that came from the host/proxy, not an error answered by Arth itself.
+ * Arth's own errors (e.g. "Too many sign-in attempts") always carry a JSON error body and are shown as they are.
+ */
 async function isWakeFailure(res: Response | null): Promise<boolean> {
   if (res === null) return true;
   if (!WAKE_STATUSES.has(res.status)) return false;
   const text = await res.clone().text().catch(() => "");
   return !(safeJson(text) as ApiErrorBody | undefined)?.error;
+}
+
+/** Seconds from a Retry-After header, if the host sent one (capped so the wait stays reasonable). */
+function retryAfterMs(res: Response | null): number | null {
+  const v = res?.headers.get("Retry-After");
+  const n = v ? Number(v) : NaN;
+  return Number.isFinite(n) && n > 0 ? Math.min(n * 1000, 20_000) : null;
 }
 
 async function request<T>(method: string, path: string, body?: unknown, init?: RequestInit): Promise<T> {
@@ -76,6 +87,7 @@ async function request<T>(method: string, path: string, body?: unknown, init?: R
   for (let attempt = 0; ; attempt++) {
     const r = await send(method, path, body, init);
     if (r !== null && !(await isWakeFailure(r))) { res = r; break; }
+    const hostSaid = retryAfterMs(r);
     if (!retryable || Date.now() - started > WAKE_DEADLINE_MS) {
       setWaking(false);
       throw new ApiError(503, "SERVER_WAKING", retryable
@@ -83,7 +95,7 @@ async function request<T>(method: string, path: string, body?: unknown, init?: R
         : "The server was waking up, so this may not have been saved. Check, then try again.");
     }
     setWaking(true);
-    await sleep(Math.min(2000 + attempt * 2000, 10_000));
+    await sleep(hostSaid ?? Math.min(3000 + attempt * 2000, 10_000));
   }
   setWaking(false);
   if (res.status === 204) return undefined as T;
@@ -94,7 +106,7 @@ async function request<T>(method: string, path: string, body?: unknown, init?: R
     if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/")) {
       window.location.href = "/login";
     }
-    throw new ApiError(res.status, err?.code ?? "HTTP_" + res.status, err?.message ?? "Request failed. Check that the API is running.", err?.details ?? []);
+    throw new ApiError(res.status, err?.code ?? "HTTP_" + res.status, err?.message ?? `The server couldn't handle that right now (error ${res.status}). Try again in a minute.`, err?.details ?? []);
   }
   return data as T;
 }
