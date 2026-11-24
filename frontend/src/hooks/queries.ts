@@ -36,8 +36,8 @@ export const useNetWorth = () => useQuery({ queryKey: keys.netWorth, queryFn: ()
 export const useNetWorthHistory = (months = 12) =>
   useQuery({ queryKey: keys.netWorthHistory(months), queryFn: () => api.get<NetWorthPoint[]>("/networth/history", { months }) });
 /** One owner's investments on their own (yours, or parents' tracked separately). */
-export const usePortfolio = (owner: HoldingOwner) =>
-  useQuery({ queryKey: ["portfolio", owner], queryFn: () => api.get<NetWorthSummary>("/networth/portfolio", { owner }), refetchInterval: 60_000 });
+export const usePortfolio = (owner: HoldingOwner, poll = true) =>
+  useQuery({ queryKey: ["portfolio", owner], queryFn: () => api.get<NetWorthSummary>("/networth/portfolio", { owner }), refetchInterval: poll ? 60_000 : false });
 export const usePlans = () => useQuery({ queryKey: ["plans"], queryFn: () => api.get<InvestmentPlan[]>("/networth/plans") });
 export const usePriceStatus = () => useQuery({ queryKey: ["price-refresh-status"], queryFn: () => api.get<PriceStatus>("/networth/prices/refresh-status"), refetchInterval: 60_000 });
 export const useHoldings = () => useQuery({ queryKey: keys.holdings, queryFn: () => api.get<Holding[]>("/networth/holdings"), refetchInterval: 60_000 });
