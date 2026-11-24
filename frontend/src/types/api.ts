@@ -271,7 +271,11 @@ export interface Holding {
   notes: string | null;
   archived: boolean;
   version: number;
+  /** SELF counts in your net worth; PARENTS is tracked separately */
+  owner: HoldingOwner;
 }
+
+export type HoldingOwner = "SELF" | "PARENTS";
 
 export interface Liability {
   id: string;

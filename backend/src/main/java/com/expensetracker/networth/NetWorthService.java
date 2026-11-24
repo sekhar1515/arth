@@ -90,12 +90,26 @@ public class NetWorthService {
         this.clock = clock;
     }
 
+    /** Your net worth: bank and cash, your own investments (not parents'), minus cards and loans. */
     @Transactional(readOnly = true)
     public Summary summary(UUID userId) {
+        return build(userId, HoldingOwner.SELF, true);
+    }
+
+    /**
+     * One owner's investments on their own (e.g. parents' holdings you manage): values, gains, XIRR and the day's
+     * move, with no bank accounts, loans or history. Parents' holdings never count in your net worth.
+     */
+    @Transactional(readOnly = true)
+    public Summary portfolio(UUID userId, HoldingOwner owner) {
+        return build(userId, owner == null ? HoldingOwner.SELF : owner, false);
+    }
+
+    private Summary build(UUID userId, HoldingOwner owner, boolean withAccounts) {
         LocalDate today = TimeConfig.today(clock);
         List<Item> cashItems = new ArrayList<>();
         List<Item> cardItems = new ArrayList<>();
-        for (AccountService.AccountDto a : accounts.list(userId)) {
+        for (AccountService.AccountDto a : withAccounts ? accounts.list(userId) : List.<AccountService.AccountDto>of()) {
             if (a.archived()) continue;
             String source = "Opening balance + imported transactions";
             if (a.type() == AccountType.CREDIT_CARD && a.balance().signum() < 0) {
@@ -109,7 +123,7 @@ public class NetWorthService {
         Map<Allocation, BigDecimal> alloc = new EnumMap<>(Allocation.class);
         BigDecimal holdingsValue = BigDecimal.ZERO, invested = BigDecimal.ZERO, investedWithKnownCost = BigDecimal.ZERO, valueWithKnownCost = BigDecimal.ZERO;
         int estimated = 0;
-        List<Holding> mine = holdings.findByUserIdAndArchivedFalse(userId);
+        List<Holding> mine = holdings.findByUserIdAndOwnerAndArchivedFalse(userId, owner);
         Map<String, PriceService.Scheme> schemes = prices.byCodes(mine.stream().map(Holding::getSchemeCode).filter(java.util.Objects::nonNull).distinct().toList());
         Map<String, StockPriceService.Security> closes = stockPrices.byIsins(mine.stream().map(Holding::getIsin).filter(java.util.Objects::nonNull).distinct().toList());
         BigDecimal dayChange = null, dayBase = BigDecimal.ZERO;
@@ -153,7 +167,7 @@ public class NetWorthService {
         byClass.forEach((cls, items) -> assetGroups.add(withXirr(group(cls.name(), cls.label(), items), flows)));
 
         List<Item> loanItems = new ArrayList<>();
-        for (Liability l : liabilities.findByUserIdAndArchivedFalse(userId)) {
+        for (Liability l : withAccounts ? liabilities.findByUserIdAndArchivedFalse(userId) : List.<Liability>of()) {
             String detail = (l.getLender() == null ? "" : l.getLender() + ", ") + (l.getInterestRate() == null ? "" : l.getInterestRate().stripTrailingZeros().toPlainString() + "%")
                     + (l.getEmi() == null ? "" : ", EMI " + com.expensetracker.analytics.InrFormat.format(l.getEmi()));
             loanItems.add(new Item("LIABILITY", l.getId(), l.getName(), detail.replaceAll("^, |, $", ""), l.getOutstanding(), null, null, null,
@@ -183,10 +197,12 @@ public class NetWorthService {
         String pricesNote = fundNote + "; " + stockNote;
 
         return new Summary(net, assets, owed, invested.setScale(2, RoundingMode.HALF_UP), holdingsValue.setScale(2, RoundingMode.HALF_UP), gain, gainPct,
-                assetGroups, liabilityGroups, allocation, change(userId, today.minusDays(30), net), change(userId, LocalDate.of(today.getYear(), 1, 1), net),
+                assetGroups, liabilityGroups, allocation,
+                withAccounts ? change(userId, today.minusDays(30), net) : null,
+                withAccounts ? change(userId, LocalDate.of(today.getYear(), 1, 1), net) : null,
                 estimated, pricesNote, dayChange == null ? null : dayChange.setScale(2, RoundingMode.HALF_UP),
                 dayChange == null || dayBase.signum() == 0 ? null : dayChange.multiply(BigDecimal.valueOf(100)).divide(dayBase, 2, RoundingMode.HALF_UP),
-                change(userId, today.minusDays(1), net), sinceStart(userId, today, net),
+                withAccounts ? change(userId, today.minusDays(1), net) : null, withAccounts ? sinceStart(userId, today, net) : null,
                 Xirr.percent(mergeTodayValues(allFlows, today)), flows.size(), mine.size());
     }
 

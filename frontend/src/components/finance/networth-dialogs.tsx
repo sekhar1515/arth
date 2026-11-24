@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { formatDate, inr, isoDay } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { AllocationBucket, AssetClass, Holding, Liability, LiabilityType, ListedSecurity, MfScheme } from "@/types/api";
+import type { AllocationBucket, AssetClass, Holding, HoldingOwner, Liability, LiabilityType, ListedSecurity, MfScheme } from "@/types/api";
 import { useInvalidateWealth } from "@/hooks/queries";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -35,6 +35,8 @@ export const ASSET_CLASSES: { value: AssetClass; label: string; hint: string }[]
 
 const MARKET: AssetClass[] = ["MUTUAL_FUND", "STOCK", "ETF", "GOLD", "SGB", "BOND", "CRYPTO"];
 const FIXED: AssetClass[] = ["FIXED_DEPOSIT"];
+
+export const OWNER_LABEL: Record<HoldingOwner, string> = { SELF: "Me", PARENTS: "Parents" };
 
 export const BUCKET_LABEL: Record<AllocationBucket, string> = {
   EQUITY: "Equity", DEBT: "Debt", HYBRID: "Hybrid", GOLD: "Gold", REAL_ESTATE: "Real estate", CASH: "Cash & bank", OTHER: "Other",
@@ -120,8 +122,9 @@ function SecuritySearch({ onPick, placeholder }: { onPick: (s: ListedSecurity) =
   );
 }
 
-export function HoldingDialog({ holding, open, onOpenChange }: { holding?: Holding; open: boolean; onOpenChange: (o: boolean) => void }) {
+export function HoldingDialog({ holding, owner: initialOwner = "SELF", open, onOpenChange }: { holding?: Holding; owner?: HoldingOwner; open: boolean; onOpenChange: (o: boolean) => void }) {
   const invalidate = useInvalidateWealth();
+  const [owner, setOwner] = useState<HoldingOwner>(holding?.owner ?? initialOwner);
   const [cls, setCls] = useState<AssetClass | null>(holding?.assetClass ?? null);
   const [f, setF] = useState({
     name: holding?.name ?? "", schemeCode: holding?.schemeCode ?? "", isin: holding?.isin ?? "", symbol: holding?.symbol ?? "",
@@ -153,13 +156,13 @@ export function HoldingDialog({ holding, open, onOpenChange }: { holding?: Holdi
       schemeCode: f.schemeCode || null, valuationMethod: effectiveMethod, allocation: f.allocation || null,
       units: f.units || null, investedAmount: f.investedAmount || null, currentPrice: f.currentPrice || null, manualValue: f.manualValue || null,
       interestRate: f.interestRate || null, compoundingPerYear: effectiveMethod === "FIXED_RATE" ? Number(f.compoundingPerYear) : null,
-      startDate: f.startDate || null, maturityDate: f.maturityDate || null, version: holding?.version,
+      startDate: f.startDate || null, maturityDate: f.maturityDate || null, version: holding?.version, owner,
     };
     try {
       if (holding) await api.put(`/networth/holdings/${holding.id}`, body);
       else await api.post("/networth/holdings", body);
       invalidate();
-      toast.success(holding ? "Saved" : `Added ${body.name}`);
+      toast.success(holding ? "Saved" : `Added ${body.name}${owner === "PARENTS" ? " to parents' investments" : ""}`);
       onOpenChange(false);
     } catch (e) {
       toast.error(err(e));
@@ -256,6 +259,12 @@ export function HoldingDialog({ holding, open, onOpenChange }: { holding?: Holdi
                   </Field>
                 </>
               )}
+              <Field label="Belongs to" htmlFor="h-owner" hint={owner === "PARENTS" ? "Tracked separately, not counted in your net worth" : "Counts in your net worth"}>
+                <Select id="h-owner" value={owner} onChange={(e) => setOwner(e.target.value as HoldingOwner)}>
+                  <option value="SELF">Me</option>
+                  <option value="PARENTS">Parents</option>
+                </Select>
+              </Field>
               <Field label="Counts as" htmlFor="h-alloc" hint="Used for your asset allocation">
                 <Select id="h-alloc" value={f.allocation} onChange={(e) => set({ allocation: e.target.value as AllocationBucket })}>
                   <option value="">Automatic</option>
@@ -269,7 +278,7 @@ export function HoldingDialog({ holding, open, onOpenChange }: { holding?: Holdi
             </div>
             <div className="flex gap-2">
               {!holding && <Button variant="ghost" onClick={() => setCls(null)}>Back</Button>}
-              <Button className="flex-1" disabled={busy || !(f.name || picked)} onClick={save}>{holding ? "Save changes" : "Add to net worth"}</Button>
+              <Button className="flex-1" disabled={busy || !(f.name || picked)} onClick={save}>{holding ? "Save changes" : owner === "PARENTS" ? "Add to parents' investments" : "Add to net worth"}</Button>
             </div>
           </div>
         )}
@@ -443,8 +452,9 @@ export function LiabilityDialog({ liability, open, onOpenChange }: { liability?:
 
 const PLATFORMS = ["Zerodha", "Groww", "Coin", "Kuvera", "INDmoney", "Upstox", "Angel One", "ICICI Direct", "HDFC Securities", "Other"];
 
-export function ImportHoldingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function ImportHoldingsDialog({ owner: initialOwner = "SELF", open, onOpenChange }: { owner?: HoldingOwner; open: boolean; onOpenChange: (o: boolean) => void }) {
   const invalidate = useInvalidateWealth();
+  const [owner, setOwner] = useState<HoldingOwner>(initialOwner);
   const [platform, setPlatform] = useState("Zerodha");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ rows: number; created: number; updated: number; linkedToAmfi: number; errors: string[] } | null>(null);
@@ -455,10 +465,10 @@ export function ImportHoldingsDialog({ open, onOpenChange }: { open: boolean; on
     const fd = new FormData();
     fd.append("file", file);
     try {
-      const r = await api.post<typeof result>(`/networth/holdings/import?platform=${encodeURIComponent(platform)}`, fd);
+      const r = await api.post<typeof result>(`/networth/holdings/import?platform=${encodeURIComponent(platform)}&owner=${owner}`, fd);
       setResult(r);
       invalidate();
-      toast.success("Holdings imported");
+      toast.success(owner === "PARENTS" ? "Parents' holdings imported" : "Holdings imported");
     } catch (e) {
       toast.error(err(e));
     } finally {
@@ -478,6 +488,12 @@ export function ImportHoldingsDialog({ open, onOpenChange }: { open: boolean; on
           <div className="w-56"><Field label="From" htmlFor="imp-platform">
             <Select id="imp-platform" value={platform} onChange={(e) => setPlatform(e.target.value)}>
               {PLATFORMS.map((p) => <option key={p}>{p}</option>)}
+            </Select>
+          </Field></div>
+          <div className="w-44"><Field label="Whose holdings" htmlFor="imp-owner">
+            <Select id="imp-owner" value={owner} onChange={(e) => setOwner(e.target.value as HoldingOwner)}>
+              <option value="SELF">Mine</option>
+              <option value="PARENTS">Parents&apos;</option>
             </Select>
           </Field></div>
           <input ref={ref} id="holdings-file" type="file" accept=".csv,.txt,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" className="sr-only" onChange={(e) => upload(e.target.files?.[0])} />

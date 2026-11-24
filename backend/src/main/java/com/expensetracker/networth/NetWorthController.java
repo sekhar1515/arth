@@ -65,6 +65,14 @@ public class NetWorthController {
         return netWorth.current(userId); // also saves today's point, so history and comparisons are current
     }
 
+    /** One owner's investments on their own: SELF (yours) or PARENTS (tracked separately, not in your net worth). */
+    @GetMapping("/portfolio")
+    public NetWorthService.Summary portfolio(@RequestParam(defaultValue = "SELF") HoldingOwner owner) {
+        UUID userId = CurrentUser.id();
+        interest.accrueFor(userId);
+        return netWorth.portfolio(userId, owner);
+    }
+
     @GetMapping("/history")
     public List<NetWorthService.Point> history(@RequestParam(defaultValue = "12") int months) {
         UUID userId = CurrentUser.id();
@@ -133,15 +141,16 @@ public class NetWorthController {
     @PostMapping(value = "/holdings/import", consumes = "multipart/form-data")
     public HoldingService.ImportResult importHoldings(@RequestPart("file") MultipartFile file,
                                                       @RequestParam(required = false) String platform,
-                                                      @RequestParam(required = false) AssetClass assetClass) throws IOException {
+                                                      @RequestParam(required = false) AssetClass assetClass,
+                                                      @RequestParam(defaultValue = "SELF") HoldingOwner owner) throws IOException {
         if (file.isEmpty()) throw ApiException.badRequest("The file is empty");
         String name = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
         UUID userId = CurrentUser.id();
         HoldingService.ImportResult result;
         if (com.expensetracker.integration.parsing.SpreadsheetReader.isSpreadsheet(name)) {
-            result = importSpreadsheet(userId, file.getBytes(), platform, assetClass);
+            result = importSpreadsheet(userId, file.getBytes(), platform, assetClass, owner);
         } else if (name.endsWith(".csv") || name.endsWith(".txt")) {
-            result = holdings.importCsv(userId, new String(file.getBytes(), StandardCharsets.UTF_8), platform, assetClass);
+            result = holdings.importCsv(userId, new String(file.getBytes(), StandardCharsets.UTF_8), platform, assetClass, owner);
         } else {
             throw ApiException.badRequest("Upload your holdings as Excel (.xlsx or .xls) or CSV");
         }
@@ -150,7 +159,7 @@ public class NetWorthController {
     }
 
     /** Imports every sheet that holds a holdings table (e.g. Zerodha Console's Equity and Mutual Funds sheets) and adds up the results. */
-    private HoldingService.ImportResult importSpreadsheet(UUID userId, byte[] bytes, String platform, AssetClass assetClass) {
+    private HoldingService.ImportResult importSpreadsheet(UUID userId, byte[] bytes, String platform, AssetClass assetClass, HoldingOwner owner) {
         List<com.expensetracker.integration.parsing.SpreadsheetReader.SheetTable> sheets;
         try {
             sheets = com.expensetracker.integration.parsing.SpreadsheetReader.read(bytes);
@@ -168,7 +177,7 @@ public class NetWorthController {
                 if (firstProblem == null) firstProblem = e.getMessage();
                 continue;
             }
-            var r = holdings.importCsv(userId, sheet.csv(), platform, assetClass);
+            var r = holdings.importCsv(userId, sheet.csv(), platform, assetClass, owner);
             any = true;
             rows += r.rows();
             created += r.created();

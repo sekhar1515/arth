@@ -23,7 +23,8 @@ public class HoldingService {
     public record HoldingRequest(AssetClass assetClass, String name, String symbol, String isin, String schemeCode, String folio,
                                  String platform, Allocation allocation, ValuationMethod valuationMethod, BigDecimal units,
                                  BigDecimal investedAmount, BigDecimal currentPrice, BigDecimal manualValue, BigDecimal interestRate,
-                                 Integer compoundingPerYear, LocalDate startDate, LocalDate maturityDate, String notes, Long version) {
+                                 Integer compoundingPerYear, LocalDate startDate, LocalDate maturityDate, String notes, Long version,
+                                 HoldingOwner owner) {
     }
 
     public record HoldingDto(UUID id, AssetClass assetClass, String assetClassLabel, String name, String symbol, String isin, String schemeCode,
@@ -31,7 +32,8 @@ public class HoldingService {
                              BigDecimal investedAmount, BigDecimal currentPrice, BigDecimal manualValue, BigDecimal interestRate,
                              Integer compoundingPerYear, LocalDate startDate, LocalDate maturityDate, Instant priceAsOf,
                              Holding.PriceSource priceSource, BigDecimal value, BigDecimal gain, BigDecimal gainPct, boolean estimated,
-                             String basis, String notes, boolean archived, long version, BigDecimal accruedInterest, LocalDate interestAccruedTo) {
+                             String basis, String notes, boolean archived, long version, BigDecimal accruedInterest, LocalDate interestAccruedTo,
+                             HoldingOwner owner) {
     }
 
     public record ImportResult(int rows, int created, int updated, int linkedToAmfi, List<String> errors) {
@@ -163,6 +165,13 @@ public class HoldingService {
      */
     @Transactional
     public ImportResult importCsv(UUID userId, String content, String platform, AssetClass forcedClass) {
+        return importCsv(userId, content, platform, forcedClass, HoldingOwner.SELF);
+    }
+
+    /** As above, for one owner's holdings: rows match (and update) only that owner's holdings, and new ones belong to them. */
+    @Transactional
+    public ImportResult importCsv(UUID userId, String content, String platform, AssetClass forcedClass, HoldingOwner owner) {
+        HoldingOwner who = owner == null ? HoldingOwner.SELF : owner;
         HoldingsCsvParser.Result parsed;
         try {
             parsed = HoldingsCsvParser.parse(content);
@@ -170,7 +179,7 @@ public class HoldingService {
             throw ApiException.unprocessable(e.getMessage());
         }
         String plat = platform == null || platform.isBlank() ? null : platform.trim();
-        List<Holding> mine = repository.findByUserIdAndArchivedFalse(userId);
+        List<Holding> mine = repository.findByUserIdAndOwnerAndArchivedFalse(userId, who);
         int created = 0, updated = 0, linked = 0;
         List<String> errors = new ArrayList<>(parsed.errors());
         Instant now = clock.instant();
@@ -183,6 +192,7 @@ public class HoldingService {
             if (isNew) {
                 h = new Holding(userId, cls, row.name().length() > 200 ? row.name().substring(0, 200) : row.name());
                 h.setPlatform(plat);
+                h.setOwner(who);
                 h.setIsin(row.isin());
                 h.setSymbol(row.symbol());
                 h.setFolio(row.folio());
@@ -227,7 +237,8 @@ public class HoldingService {
                 updated++;
             }
         }
-        audit.record(userId, "HOLDINGS_IMPORTED", "holding", null, created + " new, " + updated + " updated" + (plat == null ? "" : " from " + plat));
+        audit.record(userId, "HOLDINGS_IMPORTED", "holding", null, created + " new, " + updated + " updated" + (plat == null ? "" : " from " + plat)
+                + (who == HoldingOwner.SELF ? "" : " for " + who.label().toLowerCase(Locale.ROOT)));
         return new ImportResult(parsed.rows().size(), created, updated, linked, errors);
     }
 
@@ -273,6 +284,7 @@ public class HoldingService {
         }
         if (r.maturityDate() != null) h.setMaturityDate(r.maturityDate());
         if (r.notes() != null) h.setNotes(blank(r.notes()));
+        if (r.owner() != null) h.setOwner(r.owner());
         if (r.schemeCode() != null) {
             String code = blank(r.schemeCode());
             h.setSchemeCode(code);
@@ -321,7 +333,7 @@ public class HoldingService {
                 h.getFolio(), h.getPlatform(), h.getAllocation(), h.getValuationMethod(), h.getUnits(), h.getInvestedAmount(), h.getCurrentPrice(),
                 h.getManualValue(), h.getInterestRate(), h.getCompoundingPerYear(), h.getStartDate(), h.getMaturityDate(), h.getPriceAsOf(),
                 h.getPriceSource(), v.value(), v.gain(), v.gainPct(), v.estimated(), v.basis(), h.getNotes(), h.isArchived(), h.getVersion(),
-                h.getAccruedInterest(), h.getInterestAccruedTo());
+                h.getAccruedInterest(), h.getInterestAccruedTo(), h.getOwner());
     }
 
     private Holding require(UUID userId, UUID id) {

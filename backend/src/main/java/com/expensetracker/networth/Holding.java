@@ -68,6 +68,9 @@ public class Holding {
     @Column(name = "price_source")
     private PriceSource priceSource;
     private String notes;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private HoldingOwner owner = HoldingOwner.SELF;
     @Column(nullable = false)
     private boolean archived;
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -150,6 +153,8 @@ public class Holding {
     public PriceSource getPriceSource() { return priceSource; }
     public String getNotes() { return notes; }
     public void setNotes(String v) { this.notes = v; }
+    public HoldingOwner getOwner() { return owner; }
+    public void setOwner(HoldingOwner v) { this.owner = v == null ? HoldingOwner.SELF : v; }
     public boolean isArchived() { return archived; }
     public void setArchived(boolean v) { this.archived = v; }
     public long getVersion() { return version; }
