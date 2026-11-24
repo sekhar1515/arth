@@ -13,16 +13,21 @@ import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { EmptyState, ErrorState, Panel, Skeleton } from "@/components/ui/states";
-import { useHoldings, useInvalidateWealth, useNetWorth, usePlans, usePriceStatus } from "@/hooks/queries";
+import { useHoldings, useInvalidateWealth, usePlans, usePortfolio, usePriceStatus } from "@/hooks/queries";
 import { api, ApiError } from "@/lib/api";
 import { formatDate, inr } from "@/lib/format";
-import type { Holding, InvestmentPlan, NetWorthItem } from "@/types/api";
+import { cn } from "@/lib/utils";
+import type { Holding, HoldingOwner, InvestmentPlan, NetWorthItem } from "@/types/api";
 
 const short = (d: string | null) => (d ? formatDate(d, { day: "numeric", month: "short" }) : "—");
 
 export default function InvestmentsPage() {
-  const nw = useNetWorth();
+  const [owner, setOwner] = useState<HoldingOwner>("SELF");
+  const mineP = usePortfolio("SELF");
+  const parentsP = usePortfolio("PARENTS");
+  const nw = owner === "SELF" ? mineP : parentsP;
   const holdings = useHoldings();
+  const parents = owner === "PARENTS";
   const plans = usePlans();
   const status = usePriceStatus();
   const invalidate = useInvalidateWealth();
@@ -37,7 +42,9 @@ export default function InvestmentsPage() {
   const s = nw.data;
   const groups = (s?.assetGroups ?? []).filter((g) => g.items.some((i) => i.kind === "HOLDING"));
   const byId = (id: string) => holdings.data?.find((h) => h.id === id);
-  const plansFor = (holdingId: string) => (plans.data ?? []).filter((p) => p.holdingId === holdingId);
+  const ownHoldings = (holdings.data ?? []).filter((h) => (h.owner ?? "SELF") === owner);
+  const ownPlans = (plans.data ?? []).filter((p) => ownHoldings.some((h) => h.id === p.holdingId));
+  const plansFor = (holdingId: string) => ownPlans.filter((p) => p.holdingId === holdingId);
 
   async function refreshPrices() {
     setRefreshing(true);
@@ -57,7 +64,7 @@ export default function InvestmentsPage() {
   }
 
   async function removeHolding(item: NetWorthItem) {
-    const ok = await confirm({ title: `Delete ${item.name}?`, body: "It's removed from your investments and net worth, with any SIP or contribution set up for it. Past net worth snapshots keep their numbers.", confirmLabel: "Delete", danger: true });
+    const ok = await confirm({ title: `Delete ${item.name}?`, body: parents ? "It's removed from your parents' investments, with any SIP or contribution set up for it." : "It's removed from your investments and net worth, with any SIP or contribution set up for it. Past net worth snapshots keep their numbers.", confirmLabel: "Delete", danger: true });
     if (!ok) return;
     try {
       await api.del(`/networth/holdings/${item.id}`);
@@ -102,14 +109,16 @@ export default function InvestmentsPage() {
   }
 
   const st = status.data;
-  const hasFunds = (holdings.data ?? []).some((h) => h.assetClass === "MUTUAL_FUND");
-  const hasStocks = (holdings.data ?? []).some((h) => ["STOCK", "ETF", "SGB", "BOND"].includes(h.assetClass));
+  const hasFunds = ownHoldings.some((h) => h.assetClass === "MUTUAL_FUND");
+  const hasStocks = ownHoldings.some((h) => ["STOCK", "ETF", "SGB", "BOND"].includes(h.assetClass));
 
   return (
     <>
       <PageHeader
         title="Investments"
-        subtitle="Mutual funds, stocks, SIPs, PF and everything else you've invested in. All of it counts in your net worth."
+        subtitle={parents
+          ? "Investments you manage for your parents. Tracked on their own and not counted in your net worth."
+          : "Mutual funds, stocks, SIPs, PF and everything else you've invested in. All of it counts in your net worth."}
         actions={
           <>
             <Button variant="outline" size="sm" onClick={refreshPrices} disabled={refreshing}><RefreshCw className={refreshing ? "animate-spin" : undefined} /> Refresh prices</Button>
@@ -118,6 +127,17 @@ export default function InvestmentsPage() {
           </>
         }
       />
+
+      <div role="tablist" aria-label="Whose investments" className="-mt-2 mb-4 flex flex-wrap gap-2">
+        {([["SELF", "My investments", mineP.data], ["PARENTS", "Parents' investments", parentsP.data]] as const).map(([key, label, data]) => (
+          <button key={key} role="tab" aria-selected={owner === key} onClick={() => setOwner(key)}
+            className={cn("rounded-2xl border px-4 py-2 text-left text-sm transition-colors",
+              owner === key ? "border-peacock-2 bg-surface font-semibold text-ink shadow-sm" : "border-line bg-surface-2 text-ink-2 hover:text-ink")}>
+            {label}
+            <span className="num block text-xs font-normal text-ink-3">{data ? inr(data.holdingsValue) : "…"}</span>
+          </button>
+        ))}
+      </div>
 
       {/* where the prices come from, and as of when */}
       <div className="-mt-3 mb-5 rounded-2xl bg-surface-2 px-4 py-3 text-[13px] text-ink-2">
@@ -154,7 +174,7 @@ export default function InvestmentsPage() {
             <div className="grid grid-cols-2 gap-3 sm:col-span-2 sm:grid-cols-4">
               <QuickAdd icon={<TrendingUp />} label="Fund or stock" onClick={() => setDialog("asset")} />
               <QuickAdd icon={<Repeat />} label="SIP" onClick={() => {
-                if ((holdings.data ?? []).some((h) => planKindFor(h) === "SIP")) setPlanFor({ kind: "SIP" });
+                if (ownHoldings.some((h) => planKindFor(h) === "SIP")) setPlanFor({ kind: "SIP" });
                 else toast("Add the fund first (Fund or stock), then set up its SIP.");
               }} />
               <QuickAdd icon={<Briefcase />} label="PF / EPF" onClick={() => setDialog("pf")} />
@@ -195,17 +215,19 @@ export default function InvestmentsPage() {
 
           {groups.length === 0 && (
             <Panel>
-              <EmptyState icon={<TrendingUp />} title="Add your investments"
-                body="Mutual funds, stocks, SIPs, PF, PPF, NPS, FDs, gold: add them once and Arth keeps the value up to date and adds it to your net worth."
+              <EmptyState icon={<TrendingUp />} title={parents ? "Add your parents' investments" : "Add your investments"}
+                body={parents
+                  ? "Funds, stocks, FDs, PPF, SCSS, gold you manage for your parents: Arth keeps their value up to date here, separate from your own net worth."
+                  : "Mutual funds, stocks, SIPs, PF, PPF, NPS, FDs, gold: add them once and Arth keeps the value up to date and adds it to your net worth."}
                 action={<div className="flex flex-wrap justify-center gap-2"><Button onClick={() => setDialog("asset")}>Add investment</Button><Button variant="outline" onClick={() => setDialog("pf")}>Add PF</Button><Button variant="outline" onClick={() => setDialog("import")}>Import from broker</Button></div>} />
             </Panel>
           )}
 
-          {(plans.data?.length ?? 0) > 0 && (
+          {ownPlans.length > 0 && (
             <section className="space-y-3">
               <h2 className="font-display text-lg font-semibold">SIPs &amp; monthly contributions</h2>
               <div className="grid gap-3 md:grid-cols-2">
-                {plans.data!.map((p) => (
+                {ownPlans.map((p) => (
                   <article key={p.id} className="rounded-3xl border border-line bg-surface p-5">
                     <div className="flex items-start gap-3">
                       <div className="min-w-0 flex-1">
@@ -261,12 +283,12 @@ export default function InvestmentsPage() {
         </div>
       )}
 
-      {dialog === "asset" && <HoldingDialog open onOpenChange={(o) => !o && setDialog(null)} />}
-      {dialog === "import" && <ImportHoldingsDialog open onOpenChange={(o) => !o && setDialog(null)} />}
-      {dialog === "pf" && <PfDialog open onOpenChange={(o) => !o && setDialog(null)} />}
+      {dialog === "asset" && <HoldingDialog owner={owner} open onOpenChange={(o) => !o && setDialog(null)} />}
+      {dialog === "import" && <ImportHoldingsDialog owner={owner} open onOpenChange={(o) => !o && setDialog(null)} />}
+      {dialog === "pf" && <PfDialog owner={owner} open onOpenChange={(o) => !o && setDialog(null)} />}
       {editHolding && <HoldingDialog holding={editHolding} open onOpenChange={(o) => !o && setEditHolding(null)} />}
       {updateHolding && <UpdateValueDialog holding={updateHolding} open onOpenChange={(o) => !o && setUpdateHolding(null)} />}
-      {planFor && <PlanDialog holding={planFor.holding} holdings={holdings.data ?? []} kind={planFor.kind} plan={planFor.plan} open onOpenChange={(o) => !o && setPlanFor(null)} />}
+      {planFor && <PlanDialog holding={planFor.holding} holdings={ownHoldings} kind={planFor.kind} plan={planFor.plan} open onOpenChange={(o) => !o && setPlanFor(null)} />}
       {xirrFor && <XirrDialog holding={xirrFor} open onOpenChange={(o) => !o && setXirrFor(null)} onPurchases={() => { setLotsFor(xirrFor); setXirrFor(null); }} />}
       {lotsFor && <PurchasesDialog holding={lotsFor} open onOpenChange={(o) => !o && setLotsFor(null)} />}
       {confirmDialog}

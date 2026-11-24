@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { formatDate, inr, isoDay } from "@/lib/format";
-import type { Holding, InvestmentPlan } from "@/types/api";
+import type { Holding, HoldingOwner, InvestmentPlan } from "@/types/api";
 import { useAccounts, useInvalidateWealth } from "@/hooks/queries";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -134,7 +134,7 @@ export function PlanDialog({ holding: given, holdings = [], kind: wanted, plan, 
 }
 
 /** One step for PF: the balance from your passbook plus the monthly contributions. */
-export function PfDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function PfDialog({ owner = "SELF", open, onOpenChange }: { owner?: HoldingOwner; open: boolean; onOpenChange: (o: boolean) => void }) {
   const invalidate = useInvalidateWealth();
   const [f, setF] = useState({ name: "EPF", balance: "", amount: "", employerAmount: "", dayOfMonth: "1" });
   const [busy, setBusy] = useState(false);
@@ -143,12 +143,12 @@ export function PfDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
   async function save() {
     setBusy(true);
     try {
-      const h = await api.post<Holding>("/networth/holdings", { assetClass: "EPF", name: f.name || "EPF", manualValue: f.balance, investedAmount: f.balance });
+      const h = await api.post<Holding>("/networth/holdings", { assetClass: "EPF", name: f.name || "EPF", manualValue: f.balance, investedAmount: f.balance, owner });
       if (f.amount) {
         await api.post("/networth/plans", { holdingId: h.id, kind: "CONTRIBUTION", amount: f.amount, employerAmount: f.employerAmount || "0", dayOfMonth: Number(f.dayOfMonth) });
       }
       invalidate();
-      toast.success("PF added to your investments and net worth");
+      toast.success(owner === "PARENTS" ? "PF added to parents' investments" : "PF added to your investments and net worth");
       onOpenChange(false);
     } catch (e) {
       toast.error(err(e));

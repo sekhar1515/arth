@@ -46,6 +46,7 @@ public final class DefaultCategories {
             // Other
             new Def("Family Expenses", "EXPENSE", "Other", "users", "#D97706", List.of()),
             new Def("Gifts", "EXPENSE", "Other", "gift", "#DB2777", List.of()),
+            new Def("Temple & Pooja", "EXPENSE", "Other", "temple", "#EA580C", List.of()),
             new Def("Donations", "EXPENSE", "Other", "hand-heart", "#BE185D", List.of()),
             new Def(OTHER_EXPENSE, "EXPENSE", "Other", "circle-help", "#9CA3AF", List.of()),
             // Income

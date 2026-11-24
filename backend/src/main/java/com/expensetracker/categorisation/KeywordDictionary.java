@@ -69,7 +69,11 @@ public final class KeywordDictionary {
             e("BSE STAR MF", "Investments > SIP & Mutual Funds"), e("CAMS", "Investments > SIP & Mutual Funds", MEDIUM),
             e("CHARGES", "Bank Charges", MEDIUM), e("SMS CHG", "Bank Charges"), e("ANNUAL FEE", "Bank Charges"), e("GST", "Bank Charges", 0.5),
             e("INCOME TAX", "Tax Payments"), e("TIN NSDL", "Tax Payments"), e("ADVANCE TAX", "Tax Payments"),
-            e("DONATION", "Donations"), e("CHARITY", "Donations"), e("TEMPLE", "Donations", MEDIUM),
+            e("DONATION", "Donations"), e("CHARITY", "Donations"),
+            e("TEMPLE", "Temple & Pooja", MEDIUM), e("MANDIR", "Temple & Pooja", MEDIUM), e("DEVASTHANAM", "Temple & Pooja"),
+            e("DEVASTHANAMS", "Temple & Pooja"), e("TTD", "Temple & Pooja", MEDIUM), e("TIRUMALA", "Temple & Pooja"),
+            e("SHIRDI", "Temple & Pooja", MEDIUM), e("SAI SANSTHAN", "Temple & Pooja"), e("ISKCON", "Temple & Pooja"),
+            e("POOJA SAMAGRI", "Temple & Pooja"), e("PUJA SAMAGRI", "Temple & Pooja"),
             // income
             c("SALARY", "Salary", 0.90), c("SAL CREDIT", "Salary", 0.90), c("PAYROLL", "Salary", 0.85),
             c("INTEREST", "Interest", 0.85), c("INT PD", "Interest", 0.85), c("INT CREDIT", "Interest", 0.85),

@@ -35,6 +35,17 @@ class NoteCategorisationTest {
     }
 
     @Test
+    void templeNotesGoToTempleAndPooja() {
+        assertEquals("Temple & Pooja", NoteDictionary.lookup("temple", Direction.DEBIT).orElseThrow().categoryPath());
+        assertEquals("Temple & Pooja", NoteDictionary.lookup("mandir prasad", Direction.DEBIT).orElseThrow().categoryPath());
+        assertEquals("Temple & Pooja", NoteDictionary.lookup("pooja samagri", Direction.DEBIT).orElseThrow().categoryPath());
+        assertEquals("Temple & Pooja", NoteDictionary.lookup("hundi", Direction.DEBIT).orElseThrow().categoryPath());
+        assertEquals("Donations", NoteDictionary.lookup("church donation", Direction.DEBIT).orElseThrow().categoryPath());
+        // "Pooja" alone is usually a person's name, not a pooja
+        assertTrue(NoteDictionary.lookup("pooja", Direction.DEBIT).map(m -> !m.categoryPath().equals("Temple & Pooja")).orElse(true));
+    }
+
+    @Test
     void notesMapToCategoriesIncludingHinglish() {
         assertEquals("Groceries", NoteDictionary.lookup("sabzi", Direction.DEBIT).orElseThrow().categoryPath());
         assertEquals("Groceries", NoteDictionary.lookup("Doodh + eggs", Direction.DEBIT).orElseThrow().categoryPath());

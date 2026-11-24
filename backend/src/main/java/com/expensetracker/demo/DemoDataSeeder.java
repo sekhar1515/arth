@@ -209,7 +209,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                     h.units() == null ? null : new BigDecimal(h.units()), h.invested() == null ? null : new BigDecimal(h.invested()),
                     h.price() == null ? null : new BigDecimal(h.price()), h.manual() == null ? null : new BigDecimal(h.manual()),
                     h.rate() == null ? null : new BigDecimal(h.rate()), h.rate() == null ? null : 4, h.start(),
-                    h.start() == null ? null : h.start().plusYears(2), "Synthetic demo holding", null));
+                    h.start() == null ? null : h.start().plusYears(2), "Synthetic demo holding", null, null));
             if (h.name().startsWith("HDFC Liquid")) liquid = created.id();
         }
         liabilities.create(u, new LiabilityService.LiabilityRequest(Liability.Type.CAR_LOAN, "Car loan", "HDFC Bank", new BigDecimal("650000.00"),

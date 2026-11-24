@@ -2,15 +2,17 @@
 
 import { Landmark, Plus, TrendingUp } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PageHeader } from "@/components/layout/app-shell";
 import { BUCKET_LABEL, LiabilityDialog } from "@/components/finance/networth-dialogs";
-import { BUCKET_COLOR, DayChange, Gain, GroupCard, XirrBadge } from "@/components/finance/wealth-parts";
+import { NetWorthMoves, netWorthMoves, Signed } from "@/components/finance/networth-moves";
+import { BUCKET_COLOR, Gain, GroupCard, XirrBadge } from "@/components/finance/wealth-parts";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm";
 import { EmptyState, ErrorState, Panel, Skeleton } from "@/components/ui/states";
+import { useToday } from "@/hooks/use-today";
 import { useHoldings, useInvalidateWealth, useLiabilities, useNetWorth, useNetWorthHistory, usePlans } from "@/hooks/queries";
 import { api, ApiError } from "@/lib/api";
 import { formatDate, inr, inrCompact } from "@/lib/format";
@@ -19,7 +21,7 @@ import type { Liability, NetWorthItem } from "@/types/api";
 
 export default function NetWorthPage() {
   const nw = useNetWorth();
-  const history = useNetWorthHistory(12);
+  const history = useNetWorthHistory(13);
   const holdings = useHoldings();
   const liabilities = useLiabilities();
   const plans = usePlans();
@@ -27,8 +29,11 @@ export default function NetWorthPage() {
   const [dialog, setDialog] = useState<null | "loan">(null);
   const [editLoan, setEditLoan] = useState<Liability | null>(null);
   const s = nw.data;
+  const today = useToday(); // "Today" and "This month" move on at midnight, and start fresh on the 1st
+  const moves = useMemo(() => netWorthMoves(history.data, s?.netWorth, today), [history.data, s?.netWorth, today]);
 
   const { confirm, dialog: confirmDialog } = useConfirm();
+  const ownerOf = (holdingId: string) => holdings.data?.find((h) => h.id === holdingId)?.owner ?? "SELF";
 
   async function removeItem(item: NetWorthItem) {
     const ok = await confirm({
@@ -49,13 +54,13 @@ export default function NetWorthPage() {
     }
   }
 
-  const empty = s && s.assetGroups.every((g) => g.key === "CASH") && s.liabilityGroups.length === 0 && (holdings.data?.length ?? 0) === 0;
+  const empty = s && s.assetGroups.every((g) => g.key === "CASH") && s.liabilityGroups.length === 0 && !(holdings.data ?? []).some((h) => h.owner !== "PARENTS");
 
   return (
     <>
       <PageHeader
         title="Net Worth"
-        subtitle="Everything you own minus everything you owe. Bank balances and cards come from your accounts; investments, SIPs and PF from the Investments tab."
+        subtitle="Everything you own minus everything you owe. Bank balances and cards come from your accounts; your investments, SIPs and PF from the Investments tab. Parents' investments are tracked there separately and aren't counted here."
         actions={
           <>
             <Button variant="outline" size="sm" onClick={() => setDialog("loan")}><Plus /> Add loan</Button>
@@ -73,16 +78,15 @@ export default function NetWorthPage() {
               <p className="mt-3 text-sm text-ink-2">
                 You own <span className="num font-semibold text-ink">{inr(s.assets)}</span> and owe <span className="num font-semibold text-ink">{inr(s.liabilities)}</span>.
               </p>
-              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-2">
-                {s.sincePrevious && (
-                  <span>Since {formatDate(s.sincePrevious.since, { day: "numeric", month: "short" })} <Gain value={s.sincePrevious.amount} pct={s.sincePrevious.pct} /></span>
-                )}
-                {s.holdingsDayChange != null && <span className="inline-flex items-center gap-1">Investments, latest day <DayChange value={s.holdingsDayChange} pct={s.holdingsDayChangePct} /></span>}
-                {s.change30d && <span>Last 30 days <Gain value={s.change30d.amount} pct={s.change30d.pct} /></span>}
-                {!s.change30d && s.sinceStart && s.sinceStart.since !== s.sincePrevious?.since && (
-                  <span>Since {formatDate(s.sinceStart.since, { day: "numeric", month: "short" })} <Gain value={s.sinceStart.amount} pct={s.sinceStart.pct} /></span>
-                )}
-                {s.changeYtd && <span>Since {formatDate(s.changeYtd.since, { day: "numeric", month: "short" })} <Gain value={s.changeYtd.amount} pct={s.changeYtd.pct} /></span>}
+              <div className="mt-4 grid max-w-sm grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-surface-2 px-3 py-2">
+                  <p className="text-xs text-ink-2">Today</p>
+                  {moves.today ? <Signed value={moves.today.change} pct={moves.today.pct} className="text-sm" /> : <p className="text-xs text-ink-3">From tomorrow</p>}
+                </div>
+                <div className="rounded-2xl bg-surface-2 px-3 py-2">
+                  <p className="text-xs text-ink-2">This month</p>
+                  {moves.thisMonth ? <Signed value={moves.thisMonth.change} pct={moves.thisMonth.pct} className="text-sm" /> : <p className="text-xs text-ink-3">From tomorrow</p>}
+                </div>
               </div>
               <p className="mt-2 text-xs text-ink-3">Worked out live from your accounts, today&apos;s prices and interest earned.</p>
               {s.holdingsValue > 0 && (
@@ -137,8 +141,10 @@ export default function NetWorthPage() {
             </div>
           </section>
 
-          {(plans.data ?? []).some((p) => p.active) && (() => {
-            const active = (plans.data ?? []).filter((p) => p.active);
+          <NetWorthMoves daily={moves.daily} monthly={moves.monthly} />
+
+          {(plans.data ?? []).some((p) => p.active && ownerOf(p.holdingId) === "SELF") && (() => {
+            const active = (plans.data ?? []).filter((p) => p.active && ownerOf(p.holdingId) === "SELF");
             const monthly = active.reduce((t, p) => t + p.total, 0);
             const upcoming = [...active].filter((p) => p.nextDue).sort((a, b) => a.nextDue!.localeCompare(b.nextDue!)).slice(0, 4);
             return (

@@ -12,6 +12,8 @@ public interface HoldingRepository extends JpaRepository<Holding, UUID> {
 
     List<Holding> findByUserIdAndArchivedFalse(UUID userId);
 
+    List<Holding> findByUserIdAndOwnerAndArchivedFalse(UUID userId, HoldingOwner owner);
+
     Optional<Holding> findByIdAndUserId(UUID id, UUID userId);
 
     List<Holding> findByArchivedFalseAndSchemeCodeIn(Collection<String> schemeCodes);

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type {
+  HoldingOwner,
   InvestmentPlan,
   PriceStatus,
   Account, CatalogueEntry, Category, DashboardSummary, DayPoint, Holding, ImportResult, Liability, MonthPoint, NetWorthPoint,
@@ -34,6 +35,9 @@ export const keys = {
 export const useNetWorth = () => useQuery({ queryKey: keys.netWorth, queryFn: () => api.get<NetWorthSummary>("/networth"), refetchInterval: 60_000 });
 export const useNetWorthHistory = (months = 12) =>
   useQuery({ queryKey: keys.netWorthHistory(months), queryFn: () => api.get<NetWorthPoint[]>("/networth/history", { months }) });
+/** One owner's investments on their own (yours, or parents' tracked separately). */
+export const usePortfolio = (owner: HoldingOwner) =>
+  useQuery({ queryKey: ["portfolio", owner], queryFn: () => api.get<NetWorthSummary>("/networth/portfolio", { owner }), refetchInterval: 60_000 });
 export const usePlans = () => useQuery({ queryKey: ["plans"], queryFn: () => api.get<InvestmentPlan[]>("/networth/plans") });
 export const usePriceStatus = () => useQuery({ queryKey: ["price-refresh-status"], queryFn: () => api.get<PriceStatus>("/networth/prices/refresh-status"), refetchInterval: 60_000 });
 export const useHoldings = () => useQuery({ queryKey: keys.holdings, queryFn: () => api.get<Holding[]>("/networth/holdings"), refetchInterval: 60_000 });
@@ -43,7 +47,7 @@ export const useLiabilities = () => useQuery({ queryKey: keys.liabilities, query
 export function useInvalidateWealth() {
   const qc = useQueryClient();
   return () => {
-    for (const k of ["networth", "networth-history", "holdings", "liabilities", "summary", "plans", "accounts", "transactions", "price-refresh-status"]) qc.invalidateQueries({ queryKey: [k] });
+    for (const k of ["networth", "networth-history", "portfolio", "holdings", "liabilities", "summary", "plans", "accounts", "transactions", "price-refresh-status"]) qc.invalidateQueries({ queryKey: [k] });
   };
 }
 
@@ -80,7 +84,7 @@ export const useSyncHistory = () => useQuery({ queryKey: keys.syncHistory, query
 export function useInvalidateMoney() {
   const qc = useQueryClient();
   return () => {
-    for (const k of ["transactions", "transaction", "review", "review-count", "summary", "monthly", "daily", "accounts", "rules", "integrations", "sync-history", "networth", "networth-history", "budgets", "recurring", "cards", "analytics"]) {
+    for (const k of ["transactions", "transaction", "review", "review-count", "summary", "monthly", "daily", "accounts", "rules", "integrations", "sync-history", "networth", "networth-history", "portfolio", "budgets", "recurring", "cards", "analytics"]) {
       qc.invalidateQueries({ queryKey: [k] });
     }
   };
