@@ -13,6 +13,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/input";
 import { CategoryPicker } from "./category-picker";
 import { CATEGORY_ICON_NAMES, CategoryIcon } from "./category-icon";
+import { AmountInput } from "@/components/ui/amount-input";
 
 function errorText(e: unknown) {
   return e instanceof ApiError ? [e.message, ...e.details].join(". ") : "Something went wrong.";
@@ -42,13 +43,14 @@ export function SplitDialog({ txn, categories, open, onOpenChange, onDone }: {
             <div key={i} className={`rounded-2xl border p-3 ${active === i ? "border-peacock-2" : "border-line"}`} onClick={() => setActive(i)}>
               <div className="flex items-center gap-2">
                 <span className="flex-1 text-sm font-semibold">{flat.find((c) => c.id === l.categoryId)?.path ?? "Choose a category"}</span>
-                <Input
-                  aria-label={`Amount for part ${i + 1}`}
-                  inputMode="decimal"
-                  className="num w-32 text-right"
-                  value={l.amount}
-                  onChange={(e) => setLines(lines.map((x, j) => (j === i ? { ...x, amount: e.target.value.replace(/[^0-9.]/g, "") } : x)))}
-                />
+                <div className="w-36">
+                  <AmountInput
+                    aria-label={`Amount for part ${i + 1}`}
+                    className="num text-right"
+                    value={l.amount}
+                    onValueChange={(v) => setLines((prev) => prev.map((x, j) => (j === i ? { ...x, amount: v } : x)))}
+                  />
+                </div>
                 {lines.length > 2 && (
                   <Button variant="ghost" size="icon" aria-label="Remove part" onClick={() => setLines(lines.filter((_, j) => j !== i))}>
                     <Trash2 />
@@ -213,8 +215,8 @@ export function ManualTransactionDialog({ accounts, categories, open, onOpenChan
             ))}
           </div>
           <Field label="Amount (₹)" htmlFor="m-amount">
-            <Input id="m-amount" inputMode="decimal" className="num text-lg" value={form.amount} placeholder="0.00"
-              onChange={(e) => set({ amount: e.target.value.replace(/[^0-9.]/g, "") })} />
+            <AmountInput id="m-amount" className="num text-lg" value={form.amount} placeholder="0.00 or a sum, e.g. 450+120"
+              onValueChange={(v) => setForm((f) => ({ ...f, amount: v }))} />
           </Field>
           <Field label="Account" htmlFor="m-account">
             <Select id="m-account" value={form.accountId} onChange={(e) => set({ accountId: e.target.value })}>

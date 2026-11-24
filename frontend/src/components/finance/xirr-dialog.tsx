@@ -9,6 +9,7 @@ import { useInvalidateWealth } from "@/hooks/queries";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 
 const num = (v: string) => v.replace(/[^0-9.]/g, "");
 
@@ -48,7 +49,7 @@ export function XirrDialog({ holding, open, onOpenChange, onPurchases }: { holdi
             <Input id="xirr-since" type="date" value={since} max={isoDay(new Date())} onChange={(e) => setSince(e.target.value)} autoFocus />
           </Field>
           <Field label="Total you've put in" htmlFor="xirr-invested" hint="Everything invested so far, not today's value">
-            <Input id="xirr-invested" inputMode="decimal" className="num" value={invested} onChange={(e) => setInvested(num(e.target.value))} />
+            <AmountInput id="xirr-invested" className="num" value={invested} onValueChange={(v) => setInvested(v)} />
           </Field>
         </div>
         <p className="mt-4 rounded-2xl bg-surface-2 p-3 text-xs text-ink-2">

@@ -9,6 +9,7 @@ import { useAccounts, useInvalidateWealth } from "@/hooks/queries";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/input";
+import { AmountInput } from "@/components/ui/amount-input";
 
 const err = (e: unknown) => (e instanceof ApiError ? [e.message, ...e.details].join(". ") : "Something went wrong");
 const num = (v: string) => v.replace(/[^0-9.]/g, "");
@@ -101,11 +102,11 @@ export function PlanDialog({ holding: given, holdings = [], kind: wanted, plan, 
         )}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={pf ? "Your contribution" : "Amount"} htmlFor="plan-amount" hint={pf ? "Employee share, from your payslip" : undefined}>
-            <Input id="plan-amount" inputMode="decimal" className="num" value={f.amount} onChange={(e) => set({ amount: num(e.target.value) })} autoFocus />
+            <AmountInput id="plan-amount" className="num" value={f.amount} onValueChange={(v) => set({ amount: v })} autoFocus />
           </Field>
           {pf && (
             <Field label="Employer's contribution" htmlFor="plan-employer" hint="The part your employer adds to EPF">
-              <Input id="plan-employer" inputMode="decimal" className="num" value={f.employerAmount} onChange={(e) => set({ employerAmount: num(e.target.value) })} />
+              <AmountInput id="plan-employer" className="num" value={f.employerAmount} onValueChange={(v) => set({ employerAmount: v })} />
             </Field>
           )}
           <Field label={kind === "SIP" ? "SIP date each month" : "Date each month"} htmlFor="plan-day" hint="Day 1 to 28">
@@ -163,13 +164,13 @@ export function PfDialog({ owner = "SELF", open, onOpenChange }: { owner?: Holdi
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Name" htmlFor="pf-name"><Input id="pf-name" value={f.name} onChange={(e) => set({ name: e.target.value })} /></Field>
           <Field label="Balance today" htmlFor="pf-balance" hint="Employee + employer share, as on the passbook">
-            <Input id="pf-balance" inputMode="decimal" className="num" value={f.balance} onChange={(e) => set({ balance: num(e.target.value) })} autoFocus />
+            <AmountInput id="pf-balance" className="num" value={f.balance} onValueChange={(v) => set({ balance: v })} autoFocus />
           </Field>
           <Field label="Your monthly contribution (optional)" htmlFor="pf-amount" hint="Usually 12% of basic pay">
-            <Input id="pf-amount" inputMode="decimal" className="num" value={f.amount} onChange={(e) => set({ amount: num(e.target.value) })} />
+            <AmountInput id="pf-amount" className="num" value={f.amount} onValueChange={(v) => set({ amount: v })} />
           </Field>
           <Field label="Employer's monthly contribution" htmlFor="pf-employer" hint="The EPF part (excluding pension)">
-            <Input id="pf-employer" inputMode="decimal" className="num" value={f.employerAmount} onChange={(e) => set({ employerAmount: num(e.target.value) })} />
+            <AmountInput id="pf-employer" className="num" value={f.employerAmount} onValueChange={(v) => set({ employerAmount: v })} />
           </Field>
           <Field label="Added on" htmlFor="pf-day" hint="Day your salary is credited">
             <Select id="pf-day" value={f.dayOfMonth} onChange={(e) => set({ dayOfMonth: e.target.value })}>
