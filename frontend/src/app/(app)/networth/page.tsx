@@ -12,6 +12,7 @@ import { BUCKET_COLOR, Gain, GroupCard, XirrBadge } from "@/components/finance/w
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm";
 import { EmptyState, ErrorState, Panel, Skeleton } from "@/components/ui/states";
+import { useToday } from "@/hooks/use-today";
 import { useHoldings, useInvalidateWealth, useLiabilities, useNetWorth, useNetWorthHistory, usePlans } from "@/hooks/queries";
 import { api, ApiError } from "@/lib/api";
 import { formatDate, inr, inrCompact } from "@/lib/format";
@@ -28,7 +29,8 @@ export default function NetWorthPage() {
   const [dialog, setDialog] = useState<null | "loan">(null);
   const [editLoan, setEditLoan] = useState<Liability | null>(null);
   const s = nw.data;
-  const moves = useMemo(() => netWorthMoves(history.data, s?.netWorth), [history.data, s?.netWorth]);
+  const today = useToday(); // "Today" and "This month" move on at midnight, and start fresh on the 1st
+  const moves = useMemo(() => netWorthMoves(history.data, s?.netWorth, today), [history.data, s?.netWorth, today]);
 
   const { confirm, dialog: confirmDialog } = useConfirm();
   const ownerOf = (holdingId: string) => holdings.data?.find((h) => h.id === holdingId)?.owner ?? "SELF";

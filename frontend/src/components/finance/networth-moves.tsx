@@ -26,8 +26,7 @@ const daysBetween = (a: string, b: string) => Math.round((Date.parse(b + "T00:00
  * Day-by-day and month-by-month change in net worth, from the nightly points. Today's point is replaced by the live
  * figure so the numbers match the total shown on the page.
  */
-export function netWorthMoves(history: NetWorthPoint[] | undefined, liveNetWorth: number | undefined) {
-  const today = isoDay(new Date());
+export function netWorthMoves(history: NetWorthPoint[] | undefined, liveNetWorth: number | undefined, today: string = isoDay(new Date())) {
   const pts = [...(history ?? [])].sort((a, b) => a.date.localeCompare(b.date)).map((p) => ({ date: p.date, netWorth: p.netWorth }));
   if (liveNetWorth != null) {
     if (pts.length && pts[pts.length - 1].date === today) pts[pts.length - 1] = { date: today, netWorth: liveNetWorth };

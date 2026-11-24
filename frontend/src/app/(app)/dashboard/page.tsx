@@ -2,29 +2,54 @@
 
 import { ArrowRight, Inbox, Plus } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/app-shell";
 import { CategoryBreakdown, DailySpendChart, IncomeExpenseChart, Insights, MoneyFlow, PaymentApps } from "@/components/finance/dashboard-parts";
 import { DateRangePicker, presetRange, type Range } from "@/components/finance/date-range";
+import { ManualTransactionDialog } from "@/components/finance/dialogs";
 import { Monogram } from "@/components/finance/approval-card";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Panel, Skeleton } from "@/components/ui/states";
-import { useDaily, useMe, useMonthly, useSummary } from "@/hooks/queries";
+import { useAccounts, useCategories, useDaily, useMe, useMonthly, useSummary } from "@/hooks/queries";
+import { useToday } from "@/hooks/use-today";
 import { inr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const [range, setRange] = useState<Range>(() => presetRange("this-month"));
+  const today = useToday();
+  // a new day (or month) while the app is open: "This month", "Last month" etc. move with it, so on the 1st the
+  // figures start fresh for the new month. A custom range you picked stays as it is.
+  useEffect(() => {
+    setRange((r) => (r.preset === "custom" ? r : presetRange(r.preset)));
+  }, [today]);
+  const [adding, setAdding] = useState(false);
+  const accounts = useAccounts();
+  const categories = useCategories();
   const me = useMe();
   const summary = useSummary(range.from, range.to);
   const monthly = useMonthly(6);
   const daily = useDaily(range.from, range.to);
   const s = summary.data;
   const firstName = me.data?.displayName.split(" ")[0];
+  const hasAccounts = (accounts.data ?? []).some((a) => !a.archived);
+
+  function addTransaction() {
+    if (!accounts.data) return;
+    if (!hasAccounts) {
+      toast("Add an account first (Accounts), then you can add transactions to it.");
+      return;
+    }
+    setAdding(true);
+  }
+  const addButton = (
+    <Button size="sm" onClick={addTransaction} disabled={!accounts.data}><Plus /> Add transaction</Button>
+  );
 
   return (
     <>
-      <PageHeader title={firstName ? `Hello, ${firstName}` : "Dashboard"} actions={<DateRangePicker value={range} onChange={setRange} />} />
+      <PageHeader title={firstName ? `Hello, ${firstName}` : "Dashboard"} actions={<div className="flex flex-wrap items-center gap-2"><DateRangePicker value={range} onChange={setRange} />{addButton}</div>} />
 
       {summary.isError ? (
         <ErrorState error={summary.error} retry={() => summary.refetch()} />
@@ -32,9 +57,16 @@ export default function DashboardPage() {
         <div className="space-y-6"><Skeleton className="h-48" /><div className="grid gap-6 lg:grid-cols-2"><Skeleton className="h-72" /><Skeleton className="h-72" /></div></div>
       ) : s.accounts.accounts.every((a) => a.transactionCount === 0) && s.income === 0 && s.expenses === 0 ? (
         <Panel>
-          <EmptyState icon={<Plus />} title="No transactions yet"
-            body="Add your bank accounts, then import a statement or connect bank SMS alerts. Your dashboard fills in from real data only."
-            action={<div className="flex gap-2"><Button asChild><Link href="/accounts">Add an account</Link></Button><Button asChild variant="outline"><Link href="/integrations">Connect a source</Link></Button></div>} />
+          <EmptyState
+            icon={hasAccounts ? <button type="button" onClick={addTransaction} aria-label="Add a transaction" className="grid place-items-center"><Plus /></button> : <Plus />}
+            title="No transactions yet"
+            body={hasAccounts
+              ? "Add a transaction, import a statement or connect bank SMS alerts. Your dashboard fills in from real data only."
+              : "Add your bank accounts, then import a statement or connect bank SMS alerts. Your dashboard fills in from real data only."}
+            action={<div className="flex flex-wrap justify-center gap-2">
+              {hasAccounts ? <Button onClick={addTransaction}><Plus /> Add transaction</Button> : <Button asChild><Link href="/accounts">Add an account</Link></Button>}
+              <Button asChild variant="outline"><Link href="/integrations">Connect a source</Link></Button>
+            </div>} />
         </Panel>
       ) : (
         <div className="space-y-6">
@@ -100,6 +132,7 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      {adding && accounts.data && <ManualTransactionDialog accounts={accounts.data} categories={categories.data ?? []} open onOpenChange={setAdding} />}
     </>
   );
 }
