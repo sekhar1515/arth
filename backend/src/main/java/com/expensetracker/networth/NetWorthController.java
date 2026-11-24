@@ -62,6 +62,7 @@ public class NetWorthController {
         refresher.refreshIfStale("net worth opened");
         UUID userId = CurrentUser.id();
         interest.accrueFor(userId); // PF/PPF interest up to the last completed month
+        plans.runDue(userId); // SIP/contribution debits and units that fell due (the scheduled run may not have happened)
         return netWorth.current(userId); // also saves today's point, so history and comparisons are current
     }
 

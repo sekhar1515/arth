@@ -203,7 +203,16 @@ public class InvestmentPlanService {
                 if (due == null || due.isAfter(today)) return false;
                 Holding h = holdings.findById(p.getHoldingId()).orElse(null);
                 if (h == null || h.isArchived()) return false;
-                return applyInstallment(p, h, due);
+                boolean applied = applyInstallment(p, h, due);
+                // Waiting for the day's NAV (out ~10 pm, or the next working day's for a weekend/holiday): the bank
+                // still debits on the SIP date, so take the money out of the account now. When the NAV arrives the
+                // units are added and this same debit is linked to the installment (recordDebit finds it). Safe to
+                // repeat: the debit is keyed by plan and date, and one you deleted isn't added back.
+                if (!applied && p.getAccountId() != null) {
+                    recordDebit(p, h, due);
+                    transactions.flush();
+                }
+                return applied;
             });
             if (!Boolean.TRUE.equals(more)) return;
         }

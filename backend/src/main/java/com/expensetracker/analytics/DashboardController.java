@@ -15,15 +15,19 @@ import java.util.List;
 public class DashboardController {
 
     private final DashboardService service;
+    private final com.expensetracker.networth.InvestmentPlanService plans;
 
-    public DashboardController(DashboardService service) {
+    public DashboardController(DashboardService service, com.expensetracker.networth.InvestmentPlanService plans) {
         this.service = service;
+        this.plans = plans;
     }
 
     @GetMapping("/summary")
     public DashboardService.Summary summary(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return service.summary(CurrentUser.id(), from, to);
+        java.util.UUID userId = CurrentUser.id();
+        plans.runDue(userId); // SIP/contribution debits due by today, so balances are current
+        return service.summary(userId, from, to);
     }
 
     @GetMapping("/monthly")

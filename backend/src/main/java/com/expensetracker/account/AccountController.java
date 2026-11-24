@@ -21,15 +21,19 @@ public class AccountController {
     private final AccountService service;
 
     private final AccountDeletionService deletion;
+    private final com.expensetracker.networth.InvestmentPlanService plans;
 
-    public AccountController(AccountService service, AccountDeletionService deletion) {
+    public AccountController(AccountService service, AccountDeletionService deletion, com.expensetracker.networth.InvestmentPlanService plans) {
         this.service = service;
         this.deletion = deletion;
+        this.plans = plans;
     }
 
     @GetMapping
     public List<AccountService.AccountDto> list() {
-        return service.list(CurrentUser.id());
+        UUID userId = CurrentUser.id();
+        plans.runDue(userId); // SIP/contribution debits due by today, so balances are current
+        return service.list(userId);
     }
 
     @PostMapping
