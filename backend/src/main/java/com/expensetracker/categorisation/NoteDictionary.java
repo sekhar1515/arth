@@ -79,7 +79,9 @@ public final class NoteDictionary {
             out("Shopping > Electronics", "phone", "laptop", "headphones", "electronics", "charger"),
             out("Shopping", "shopping", "amazon", "flipkart", "myntra", "furniture", "home decor", "utensils"),
             out("Gifts", "gift", "gifts", "birthday", "wedding gift", "shagun", "anniversary"),
-            out("Donations", "donation", "donate", "temple", "mandir", "church", "masjid", "gurudwara", "charity", "dakshina", "offering"),
+            out("Temple & Pooja", "temple", "mandir", "gudi", "kovil", "prasad", "prasadam", "hundi", "abhishekam",
+                    "pooja items", "pooja samagri", "puja samagri", "pooja saman", "temple pooja", "pujari", "dakshina", "homam", "havan", "tirupati", "tirumala", "shirdi"),
+            out("Donations", "donation", "donate", "church", "masjid", "gurudwara", "charity", "offering"),
             out("Family Expenses", "mom", "mother", "mummy", "maa", "dad", "father", "papa", "parents", "family", "home expenses", "pocket money", "wife", "husband", "kids", "son", "daughter", "sister", "brother",
                     "amma", "appa", "nanna", "akka", "didi", "bhaiya", "ammi", "abbu"),
             // income
