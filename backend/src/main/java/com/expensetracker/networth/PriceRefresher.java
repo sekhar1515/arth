@@ -57,10 +57,18 @@ public class PriceRefresher {
         this.enabled = enabled;
     }
 
+    /**
+     * After start-up, but not straight away: on a small free server that has just woken up, downloading AMFI's NAV
+     * file at once competes with the sign-in and page loads that woke it. Opening Net Worth or Investments still
+     * starts a refresh right away if prices are behind.
+     */
     @EventListener(ApplicationReadyEvent.class)
     public void onStartup() {
-        refreshIfStale("start-up");
+        java.util.concurrent.CompletableFuture.delayedExecutor(STARTUP_DELAY.toSeconds(), java.util.concurrent.TimeUnit.SECONDS)
+                .execute(() -> refreshIfStale("start-up"));
     }
+
+    static final java.time.Duration STARTUP_DELAY = java.time.Duration.ofMinutes(3);
 
     /** Starts a background refresh if prices are behind and none was tried in the last 30 minutes. Never blocks. */
     public void refreshIfStale(String reason) {

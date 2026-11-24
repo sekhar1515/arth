@@ -23,8 +23,9 @@ const short = (d: string | null) => (d ? formatDate(d, { day: "numeric", month: 
 
 export default function InvestmentsPage() {
   const [owner, setOwner] = useState<HoldingOwner>("SELF");
-  const mineP = usePortfolio("SELF");
-  const parentsP = usePortfolio("PARENTS");
+  // only the open tab is re-checked every minute; the other one just shows its total
+  const mineP = usePortfolio("SELF", owner === "SELF");
+  const parentsP = usePortfolio("PARENTS", owner === "PARENTS");
   const nw = owner === "SELF" ? mineP : parentsP;
   const holdings = useHoldings();
   const parents = owner === "PARENTS";

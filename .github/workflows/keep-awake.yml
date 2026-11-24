@@ -1,6 +1,12 @@
-# Render's free plan puts the API to sleep after 15 minutes without traffic, and waking takes about a minute.
-# This pings it every 10 minutes so it stays awake and its evening price refresh and hourly alert jobs keep running.
-# One always-on free service fits in Render's 750 free hours a month.
+# Render's free plan puts the API to sleep after 15 minutes without traffic, and waking it takes 1–2 minutes, so a
+# sleeping API makes sign-in and page loads slow (or time out).
+#
+# GitHub doesn't run scheduled workflows on time: "every 10 minutes" turned out to run every 5–12 hours. So each
+# run keeps pinging every 5 minutes for almost 6 hours (the longest a job may run), and every new scheduled run
+# takes over from the previous one. Even when GitHub delays a schedule by hours, the API stays awake.
+#
+# For an even steadier option, also add a free monitor (cron-job.org or UptimeRobot) that opens
+# ${ARTH_API_URL}/actuator/health every 5 minutes.
 #
 # Setup: GitHub repo → Settings → Secrets and variables → Actions → Variables → New variable
 #   ARTH_API_URL = https://arth-api.onrender.com   (your Render URL, no trailing slash)
@@ -9,13 +15,30 @@ name: Keep API awake
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/30 * * * *"
   workflow_dispatch:
+
+# one pinger at a time: a new run replaces the one before it
+concurrency:
+  group: keep-awake
+  cancel-in-progress: true
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     if: ${{ vars.ARTH_API_URL != '' }}
+    timeout-minutes: 355
     steps:
-      - name: Ping health endpoint
-        run: curl --fail --silent --show-error --max-time 120 --retry 2 --retry-delay 20 "${{ vars.ARTH_API_URL }}/actuator/health"
+      - name: Ping the health endpoint every 5 minutes
+        env:
+          URL: ${{ vars.ARTH_API_URL }}/actuator/health
+        run: |
+          end=$(( $(date +%s) + 350 * 60 ))
+          while [ "$(date +%s)" -lt "$end" ]; do
+            if curl --fail --silent --show-error --max-time 150 --retry 2 --retry-delay 20 -o /dev/null "$URL"; then
+              echo "$(date -u +%H:%M) awake"
+            else
+              echo "::warning::$(date -u +%H:%M) no answer from the API"
+            fi
+            sleep 300
+          done

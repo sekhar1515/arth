@@ -75,9 +75,9 @@ public class NetWorthController {
 
     @GetMapping("/history")
     public List<NetWorthService.Point> history(@RequestParam(defaultValue = "12") int months) {
-        UUID userId = CurrentUser.id();
-        netWorth.snapshot(userId); // today's point always reflects the latest data
-        return netWorth.history(userId, months);
+        // Today's point is saved by GET /networth (opened together with this) and on every change, and the page
+        // shows today's live figure anyway, so this doesn't work the whole net worth out a second time.
+        return netWorth.history(CurrentUser.id(), months);
     }
 
     // ---------------------------------------------------------------- holdings
