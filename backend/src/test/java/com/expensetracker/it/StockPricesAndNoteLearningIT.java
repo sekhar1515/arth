@@ -307,6 +307,45 @@ class StockPricesAndNoteLearningIT extends IntegrationTestBase {
     }
 
     @Test
+    void sipDebitsTheBankOnItsDateEvenBeforeTheNavIsOut() throws Exception {
+        Session s = register();
+        java.time.LocalDate today = java.time.LocalDate.now(com.expensetracker.common.TimeConfig.IST);
+        java.time.LocalDate due = today.getDayOfMonth() > 28 ? today.minusDays(4) : today;
+        priceService.loadNavFile(navFileDated(due.minusDays(1))); // only the day before's NAV is out so far
+        UUID bank = createAccount(s, "HDFC", "BANK", "5555", "100000");
+        JsonNode fund = postJson(s, "/api/networth/holdings", Map.of("assetClass", "MUTUAL_FUND", "name", "HDFC Nifty 50", "schemeCode", "119063",
+                "units", "100", "investedAmount", "20000"), 201);
+        JsonNode plan = postJson(s, "/api/networth/plans", Map.of("holdingId", fund.get("id").asText(), "amount", "5000",
+                "dayOfMonth", due.getDayOfMonth(), "accountId", bank.toString()), 201);
+        plainJdbc.update("UPDATE investment_plans SET last_run_date = ?, start_date = ? WHERE id = ?",
+                due.minusDays(1), due.minusDays(1), UUID.fromString(plan.get("id").asText()));
+
+        // opening the accounts list takes the SIP out of the bank on its date, before units can be added
+        assertEquals(0, balanceOf(s, bank).compareTo(new java.math.BigDecimal("95000")));
+        assertEquals(0, getJson(s, "/api/networth/plans").get(0).get("installments").size(), "units wait for the day's NAV");
+        assertEquals(0, getJson(s, "/api/networth/holdings").get(0).get("units").decimalValue().compareTo(new java.math.BigDecimal("100")));
+        getJson(s, "/api/accounts"); // again: still one debit
+        assertEquals(1, getJson(s, "/api/transactions?accountId=" + bank + "&size=10").get("content").size());
+
+        // the NAV comes out: units are added and the same debit is linked, not a second one
+        priceService.loadNavFile(navFileDated(due));
+        JsonNode inst = getJson(s, "/api/networth/plans").get(0).get("installments");
+        assertEquals(1, inst.size());
+        assertFalse(inst.get(0).get("transactionId").isNull());
+        assertEquals(0, getJson(s, "/api/networth/holdings").get(0).get("units").decimalValue().compareTo(new java.math.BigDecimal("120")));
+        assertEquals(1, getJson(s, "/api/transactions?accountId=" + bank + "&size=10").get("content").size());
+        assertEquals(0, balanceOf(s, bank).compareTo(new java.math.BigDecimal("95000")));
+    }
+
+    private java.math.BigDecimal balanceOf(Session s, UUID account) throws Exception {
+        JsonNode acc = getJson(s, "/api/accounts");
+        for (JsonNode a : acc.isArray() ? acc : acc.get("content")) {
+            if (a.get("id").asText().equals(account.toString())) return a.get("balance").decimalValue();
+        }
+        throw new AssertionError("account not found");
+    }
+
+    @Test
     void pfContributionAddsYourAndEmployerPartsWithoutABankDebit() throws Exception {
         Session s = register();
         java.time.LocalDate today = java.time.LocalDate.now(com.expensetracker.common.TimeConfig.IST);
