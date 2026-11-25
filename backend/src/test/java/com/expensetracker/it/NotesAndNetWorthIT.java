@@ -219,6 +219,54 @@ class NotesAndNetWorthIT extends IntegrationTestBase {
     }
 
     @Test
+    void parentsCanHoldTheSameFundAndGetTheirOwnSip() throws Exception {
+        Session s = register();
+        prices.loadNavFile("""
+                Open Ended Schemes(Equity Scheme - Flexi Cap Fund)
+                Parag Parikh Mutual Fund
+                122639;INF879O01027;-;Parag Parikh Flexi Cap Fund - Direct Plan - Growth;90.0000;14-Nov-2026
+                """); // so imported funds link to AMFI (a SIP needs that)
+        String csv = """
+                Scheme Name,ISIN,Units,Invested Value,Current NAV,Current Value
+                Parag Parikh Flexi Cap Fund - Direct Plan - Growth,INF879O01027,100,8000,90,9000
+                """;
+        MockMultipartFile mine = new MockMultipartFile("file", "mf.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8));
+        assertEquals(1, call(s, multipart("/api/networth/holdings/import").file(mine).param("platform", "Groww"), 200).get("created").asInt());
+
+        // the same fund, same platform, no folio, for parents: a separate holding, yours untouched
+        String theirs = csv.replace(",100,8000,90,9000", ",50,4000,90,4500");
+        MockMultipartFile f = new MockMultipartFile("file", "mf.csv", "text/csv", theirs.getBytes(StandardCharsets.UTF_8));
+        JsonNode r = call(s, multipart("/api/networth/holdings/import").file(f).param("platform", "Groww").param("owner", "PARENTS"), 200);
+        assertEquals(1, r.get("created").asInt());
+        assertEquals(0, r.get("updated").asInt());
+        JsonNode list = getJson(s, "/api/networth/holdings");
+        assertEquals(2, list.size());
+        String parentsFund = null;
+        for (JsonNode h : list) {
+            if (h.get("owner").asText().equals("PARENTS")) {
+                parentsFund = h.get("id").asText();
+                assertEquals(0, h.get("units").decimalValue().compareTo(new BigDecimal("50")));
+            } else {
+                assertEquals(0, h.get("units").decimalValue().compareTo(new BigDecimal("100")));
+            }
+        }
+        assertTrue(getJson(s, "/api/networth/portfolio?owner=PARENTS").get("holdingsValue").decimalValue().signum() > 0);
+        assertEquals(1, getJson(s, "/api/networth/portfolio?owner=PARENTS").get("holdingsCount").asInt());
+
+        // adding it by hand for parents works too; a true duplicate gets a clear message
+        Map<String, Object> manual = new HashMap<>(Map.of("assetClass", "MUTUAL_FUND", "name", "PPFAS Flexi", "isin", "INF879O01027",
+                "units", "10", "currentPrice", "90", "owner", "PARENTS", "folio", "F-2"));
+        postJson(s, "/api/networth/holdings", manual, 201);
+        JsonNode dup = postJson(s, "/api/networth/holdings", manual, 409);
+        assertTrue(dup.get("error").get("message").asText().contains("parents"));
+
+        // a SIP for the parents' fund, not paid from your bank
+        JsonNode plan = postJson(s, "/api/networth/plans", Map.of("holdingId", parentsFund, "amount", "2000", "dayOfMonth", 10), 201);
+        assertEquals("SIP", plan.get("kind").asText());
+        assertTrue(plan.get("accountId").isNull());
+    }
+
+    @Test
     void holdingValidationAndIsolation() throws Exception {
         Session a = register();
         Session b = register();

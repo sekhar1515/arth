@@ -81,7 +81,9 @@ export function PlanDialog({ holding: given, holdings = [], kind: wanted, plan, 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title={`${plan ? "Change" : "Add"} ${kind === "SIP" ? "SIP" : "monthly contribution"}${plan && holding ? `: ${holding.name}` : ""}`}
         description={kind === "SIP"
-          ? "On each SIP date Arth adds the units at that day's NAV and takes the amount out of the bank account you pick."
+          ? (holding?.owner === "PARENTS"
+            ? "On each SIP date Arth adds the units at that day's NAV. If it's paid from your parents' bank, leave \"Not from a bank account here\" so your own balance isn't touched."
+            : "On each SIP date Arth adds the units at that day's NAV and takes the amount out of the bank account you pick.")
           : pf ? "Your PF grows each month by your contribution plus your employer's. It comes out of your salary, so no bank account is needed."
             : "On each date Arth adds the amount to this investment's value and, if you pick a bank account, takes it out of that account."}>
         {!plan && (options.length > 0 || given) && (
