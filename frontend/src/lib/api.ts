@@ -21,13 +21,13 @@ export function qs(params: Query = {}): string {
 
 /**
  * The API runs on a free host that sleeps when nobody has used it for a while; the first request after that waits
- * while it wakes (up to ~2 minutes), and the proxy in front may give up early with 502/503/504 or drop the
+ * while it wakes (2–3 minutes), and the proxy in front may give up early with 502/503/504 or drop the
  * connection. Requests that are safe to repeat (reads, signing in/out) are retried until the server answers, and
  * {@link serverWake} tells the UI so it can say what's going on instead of looking stuck.
  */
 // 429 too: while the free server is asleep or waking, Render's front door answers 429/503 itself (no Arth error body)
 const WAKE_STATUSES = new Set([429, 502, 503, 504]);
-const WAKE_DEADLINE_MS = 150_000;
+const WAKE_DEADLINE_MS = 240_000; // waking measured at 2–3 minutes; allow 4
 const RETRYABLE_POSTS = new Set(["/auth/login", "/auth/logout"]);
 
 type WakeListener = (waking: boolean) => void;
@@ -91,7 +91,7 @@ async function request<T>(method: string, path: string, body?: unknown, init?: R
     if (!retryable || Date.now() - started > WAKE_DEADLINE_MS) {
       setWaking(false);
       throw new ApiError(503, "SERVER_WAKING", retryable
-        ? "The server is taking too long to wake up. Try again in a minute."
+        ? "The server is taking unusually long to wake up. Try again in a minute."
         : "The server was waking up, so this may not have been saved. Check, then try again.");
     }
     setWaking(true);

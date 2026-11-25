@@ -1,12 +1,10 @@
-# Render's free plan puts the API to sleep after 15 minutes without traffic, and waking it takes 1–2 minutes, so a
-# sleeping API makes sign-in and page loads slow (or time out).
+# Render's free plan puts the API to sleep after 15 minutes without traffic, and waking it takes 2+ minutes, so a
+# sleeping API makes sign-in slow or fail.
 #
-# GitHub doesn't run scheduled workflows on time: "every 10 minutes" turned out to run every 5–12 hours. So each
-# run keeps pinging every 5 minutes for almost 6 hours (the longest a job may run), and every new scheduled run
-# takes over from the previous one. Even when GitHub delays a schedule by hours, the API stays awake.
-#
-# For an even steadier option, also add a free monitor (cron-job.org or UptimeRobot) that opens
-# ${ARTH_API_URL}/actuator/health every 5 minutes.
+# GitHub doesn't run scheduled workflows on time (the "every 30 minutes" schedule ran every 6–18 hours), so this job
+# doesn't rely on the schedule: each run pings every 5 minutes for ~5h40m and then starts the next run itself, so
+# there is always one running. The schedule is only a backup that restarts the chain if it ever breaks.
+# (A run started with workflow_dispatch from GITHUB_TOKEN does start a new run; other events from it don't.)
 #
 # Setup: GitHub repo → Settings → Secrets and variables → Actions → Variables → New variable
 #   ARTH_API_URL = https://arth-api.onrender.com   (your Render URL, no trailing slash)
@@ -18,10 +16,14 @@ on:
     - cron: "*/30 * * * *"
   workflow_dispatch:
 
-# one pinger at a time: a new run replaces the one before it
+# one pinger at a time: a newer run replaces the one before it
 concurrency:
   group: keep-awake
   cancel-in-progress: true
+
+permissions:
+  actions: write # to start the next run
+  contents: read
 
 jobs:
   ping:
@@ -30,10 +32,11 @@ jobs:
     timeout-minutes: 355
     steps:
       - name: Ping the health endpoint every 5 minutes
+        continue-on-error: true
         env:
           URL: ${{ vars.ARTH_API_URL }}/actuator/health
         run: |
-          end=$(( $(date +%s) + 350 * 60 ))
+          end=$(( $(date +%s) + 340 * 60 ))
           while [ "$(date +%s)" -lt "$end" ]; do
             if curl --fail --silent --show-error --max-time 150 --retry 2 --retry-delay 20 -o /dev/null "$URL"; then
               echo "$(date -u +%H:%M) awake"
@@ -42,3 +45,9 @@ jobs:
             fi
             sleep 300
           done
+
+      - name: Start the next run
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run keep-awake.yml --repo "${{ github.repository }}" --ref "${{ github.event.repository.default_branch }}"
