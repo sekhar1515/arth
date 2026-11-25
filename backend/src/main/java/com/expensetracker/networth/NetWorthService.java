@@ -146,7 +146,7 @@ public class NetWorthService {
                 dayChange = (dayChange == null ? BigDecimal.ZERO : dayChange).add(move.change());
                 dayBase = dayBase.add(move.base());
             }
-            byClass.computeIfAbsent(h.getAssetClass(), k -> new ArrayList<>()).add(new Item("HOLDING", h.getId(), h.getName(), detail(d), d.value(),
+            byClass.computeIfAbsent(groupOf(h.getAssetClass()), k -> new ArrayList<>()).add(new Item("HOLDING", h.getId(), h.getName(), detail(d), d.value(),
                     d.investedAmount(), d.gain(), d.gainPct(), sourceLabel(d), d.estimated(), d.priceAsOf() == null ? null : d.priceAsOf().toString(),
                     move == null ? null : move.change(), movePct, move == null ? null : move.on(),
                     hf == null ? null : Xirr.percent(hf.flows()), hf != null && hf.estimated(), h.getStartDate()));
@@ -164,7 +164,7 @@ public class NetWorthService {
 
         List<Group> assetGroups = new ArrayList<>();
         if (!cashItems.isEmpty()) assetGroups.add(group("CASH", "Bank & cash", cashItems));
-        byClass.forEach((cls, items) -> assetGroups.add(withXirr(group(cls.name(), cls.label(), items), flows)));
+        byClass.forEach((cls, items) -> assetGroups.add(withXirr(group(cls.name(), groupLabel(cls, items, mine), items), flows)));
 
         List<Item> loanItems = new ArrayList<>();
         for (Liability l : withAccounts ? liabilities.findByUserIdAndArchivedFalse(userId) : List.<Liability>of()) {
@@ -204,6 +204,22 @@ public class NetWorthService {
                 dayChange == null || dayBase.signum() == 0 ? null : dayChange.multiply(BigDecimal.valueOf(100)).divide(dayBase, 2, RoundingMode.HALF_UP),
                 withAccounts ? change(userId, today.minusDays(1), net) : null, withAccounts ? sinceStart(userId, today, net) : null,
                 Xirr.percent(mergeTodayValues(allFlows, today)), flows.size(), mine.size());
+    }
+
+    /**
+     * ETFs trade like shares (exchange-listed, priced from the day's close), so they sit in the Stocks group: one
+     * total and one day's change for both. Each holding keeps its own type for pricing and allocation.
+     */
+    static AssetClass groupOf(AssetClass cls) {
+        return cls == AssetClass.ETF ? AssetClass.STOCK : cls;
+    }
+
+    private static String groupLabel(AssetClass group, List<Item> items, List<Holding> holdings) {
+        if (group != AssetClass.STOCK) return group.label();
+        java.util.Set<UUID> ids = items.stream().map(Item::id).collect(java.util.stream.Collectors.toSet());
+        boolean etfs = holdings.stream().anyMatch(h -> h.getAssetClass() == AssetClass.ETF && ids.contains(h.getId()));
+        boolean stocks = holdings.stream().anyMatch(h -> h.getAssetClass() == AssetClass.STOCK && ids.contains(h.getId()));
+        return etfs && stocks ? "Stocks & ETFs" : etfs ? "ETFs" : group.label();
     }
 
     /** A group's XIRR from the flows of its holdings that have one. */
@@ -356,6 +372,7 @@ public class NetWorthService {
 
     private static String detail(HoldingService.HoldingDto d) {
         List<String> parts = new ArrayList<>();
+        if (d.assetClass() == AssetClass.ETF) parts.add("ETF"); // shown in the Stocks group, so say which ones are ETFs
         if (d.units() != null && d.valuationMethod() == ValuationMethod.MARKET_PRICE) {
             parts.add(d.units().stripTrailingZeros().toPlainString() + (d.assetClass() == AssetClass.GOLD ? " g" : " units"));
         }

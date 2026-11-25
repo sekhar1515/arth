@@ -216,6 +216,17 @@ class NotesAndNetWorthIT extends IntegrationTestBase {
             if (h.get("name").asText().equals("NIFTYBEES")) assertEquals("ETF", h.get("assetClass").asText());
             if (h.get("name").asText().equals("INFY")) assertEquals(0, h.get("value").decimalValue().compareTo(new BigDecimal("25500.00")));
         }
+        // the ETF is listed with the stock: one group, one total and one day's change
+        int stockGroups = 0;
+        for (JsonNode g : getJson(s, "/api/networth").get("assetGroups")) {
+            assertNotEquals("ETF", g.get("key").asText());
+            if (g.get("key").asText().equals("STOCK")) {
+                stockGroups++;
+                assertEquals("Stocks & ETFs", g.get("label").asText());
+                assertEquals(2, g.get("items").size());
+            }
+        }
+        assertEquals(1, stockGroups);
     }
 
     @Test
