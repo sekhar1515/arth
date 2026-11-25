@@ -32,3 +32,19 @@ describe("netWorthMoves", () => {
     expect(m.today).toBeNull();
   });
 });
+
+import { portfolioMoves } from "@/components/finance/networth-moves";
+
+describe("portfolioMoves", () => {
+  const p = (date: string, value: number, gain: number) => ({ date, value, invested: value - gain, gain });
+
+  it("counts market movement, not money added by a SIP", () => {
+    // 30 Oct: worth 1,00,000 (gain 10,000). 31 Oct: up 1,000. 5 Nov: SIP of 5,000 added, market flat
+    const m = portfolioMoves([p("2026-10-30", 100000, 10000), p("2026-10-31", 101000, 11000), p("2026-11-05", 106000, 11000)],
+      { value: 106500, gain: 11500 }, "2026-11-06");
+    expect(m.today).toMatchObject({ key: "2026-11-06", change: 500, netWorth: 106500 });
+    expect(m.daily[1]).toMatchObject({ key: "2026-11-05", change: 0 });
+    expect(m.thisMonth).toMatchObject({ key: "2026-11", change: 500, current: true });
+    expect(m.monthly[1]).toMatchObject({ key: "2026-10", change: 1000, from: "2026-10-30" });
+  });
+});

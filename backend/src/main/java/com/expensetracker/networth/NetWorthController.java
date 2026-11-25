@@ -40,11 +40,12 @@ public class NetWorthController {
     private final InvestmentPlanService plans;
     private final InterestAccrualService interest;
     private final LotService lots;
+    private final PortfolioHistoryService portfolioHistory;
 
     public NetWorthController(NetWorthService netWorth, HoldingService holdings, LiabilityService liabilities, PriceService prices,
                               StockPriceService stockPrices, PriceRefresher refresher, ManualRefreshLimiter manualRefresh,
                               InvestmentPlanService plans, InterestAccrualService interest,
-                              LotService lots) {
+                              LotService lots, PortfolioHistoryService portfolioHistory) {
         this.netWorth = netWorth;
         this.holdings = holdings;
         this.liabilities = liabilities;
@@ -55,6 +56,7 @@ public class NetWorthController {
         this.plans = plans;
         this.interest = interest;
         this.lots = lots;
+        this.portfolioHistory = portfolioHistory;
     }
 
     @GetMapping
@@ -69,9 +71,20 @@ public class NetWorthController {
     /** One owner's investments on their own: SELF (yours) or PARENTS (tracked separately, not in your net worth). */
     @GetMapping("/portfolio")
     public NetWorthService.Summary portfolio(@RequestParam(defaultValue = "SELF") HoldingOwner owner) {
+        refresher.refreshIfStale("investments opened"); // newer NAVs/closes download in the background, as for /networth
         UUID userId = CurrentUser.id();
         interest.accrueFor(userId);
-        return netWorth.portfolio(userId, owner);
+        plans.runDue(userId); // SIP units/debits that fell due, for whichever owner's tab is open
+        var s = netWorth.portfolio(userId, owner);
+        portfolioHistory.save(userId, owner, s); // today's point, so the day's and month's change are current
+        return s;
+    }
+
+    /** Daily points of one portfolio, for its day-by-day and month-by-month change. */
+    @GetMapping("/portfolio/history")
+    public List<PortfolioHistoryService.Point> portfolioHistory(@RequestParam(defaultValue = "SELF") HoldingOwner owner,
+                                                                @RequestParam(defaultValue = "13") int months) {
+        return portfolioHistory.history(CurrentUser.id(), owner, months);
     }
 
     @GetMapping("/history")

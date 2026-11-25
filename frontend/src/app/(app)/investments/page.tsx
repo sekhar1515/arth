@@ -1,7 +1,7 @@
 "use client";
 
 import { Briefcase, FileUp, Pause, Pencil, Play, Plus, RefreshCw, Repeat, Trash2, TrendingUp } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/app-shell";
 import { canFetchPrice, HoldingDialog, ImportHoldingsDialog, UpdateValueDialog } from "@/components/finance/networth-dialogs";
@@ -13,7 +13,9 @@ import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { EmptyState, ErrorState, Panel, Skeleton } from "@/components/ui/states";
-import { useHoldings, useInvalidateWealth, usePlans, usePortfolio, usePriceStatus } from "@/hooks/queries";
+import { useHoldings, useInvalidateWealth, usePlans, usePortfolio, usePortfolioHistory, usePriceStatus } from "@/hooks/queries";
+import { useToday } from "@/hooks/use-today";
+import { NetWorthMoves, portfolioMoves, Signed } from "@/components/finance/networth-moves";
 import { api, ApiError } from "@/lib/api";
 import { formatDate, inr } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -29,6 +31,10 @@ export default function InvestmentsPage() {
   const nw = owner === "SELF" ? mineP : parentsP;
   const holdings = useHoldings();
   const parents = owner === "PARENTS";
+  const history = usePortfolioHistory(owner);
+  const today = useToday();
+  const live = nw.data && nw.data.holdingsCount > 0 ? { value: nw.data.holdingsValue, gain: nw.data.holdingsGain ?? 0 } : undefined;
+  const moves = useMemo(() => portfolioMoves(history.data, live, today), [history.data, live?.value, live?.gain, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const plans = usePlans();
   const status = usePriceStatus();
   const invalidate = useInvalidateWealth();
@@ -166,11 +172,19 @@ export default function InvestmentsPage() {
                   <span className="text-ink-3">Tap &ldquo;Show XIRR&rdquo; on a holding to see your yearly return.</span>
                 )}
               </p>
-              {s.holdingsDayChange != null ? (
-                <p className="mt-2 flex items-center gap-2 text-xs text-ink-2">Latest day <DayChange value={s.holdingsDayChange} pct={s.holdingsDayChangePct} /></p>
-              ) : (
-                <p className="mt-2 text-xs text-ink-3">The day&apos;s change shows once the next NAV/close is loaded.</p>
-              )}
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="rounded-2xl bg-surface-2 px-3 py-2">
+                  <p className="text-[11px] text-ink-2">1 day</p>
+                  {s.holdingsDayChange != null ? <Signed value={s.holdingsDayChange} pct={s.holdingsDayChangePct} className="text-sm" />
+                    : moves.today ? <Signed value={moves.today.change} pct={moves.today.pct} className="text-sm" />
+                      : <p className="text-[11px] text-ink-3">After the next NAV/close</p>}
+                </div>
+                <div className="rounded-2xl bg-surface-2 px-3 py-2">
+                  <p className="text-[11px] text-ink-2">This month</p>
+                  {moves.thisMonth ? <Signed value={moves.thisMonth.change} pct={moves.thisMonth.pct} className="text-sm" />
+                    : <p className="text-[11px] text-ink-3">From tomorrow</p>}
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:col-span-2 sm:grid-cols-4">
               <QuickAdd icon={<TrendingUp />} label="Fund or stock" onClick={() => setDialog("asset")} />
@@ -182,6 +196,13 @@ export default function InvestmentsPage() {
               <QuickAdd icon={<FileUp />} label="Import from Zerodha, Groww…" onClick={() => setDialog("import")} />
             </div>
           </section>
+
+          {groups.length > 0 && (
+            <NetWorthMoves daily={moves.daily} monthly={moves.monthly}
+              title={parents ? "How your parents' investments changed" : "How your investments changed"}
+              valueLabel="Value"
+              note="Market movement only: SIPs and money you add aren't counted as a gain." />
+          )}
 
           {groups.length > 0 && (
             <section className="overflow-hidden rounded-3xl border border-line bg-surface" aria-label="Investments by type">

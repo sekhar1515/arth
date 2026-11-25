@@ -290,7 +290,6 @@ public class NetWorthService {
 
     private void save(UUID userId, Summary s) {
         LocalDate today = TimeConfig.today(clock);
-        NetWorthSnapshot snap = snapshots.findByUserIdAndSnapshotDate(userId, today).orElseGet(() -> new NetWorthSnapshot(userId, today));
         Map<String, BigDecimal> breakdown = new LinkedHashMap<>();
         s.assetGroups().forEach(g -> breakdown.put(g.key(), g.value()));
         s.liabilityGroups().forEach(g -> breakdown.put("-" + g.key(), g.value()));
@@ -300,8 +299,7 @@ public class NetWorthService {
         } catch (Exception e) {
             breakdownJson = null;
         }
-        snap.set(s.assets(), s.liabilities(), breakdownJson);
-        snapshots.save(snap);
+        snapshots.upsert(UUID.randomUUID(), userId, today, s.assets(), s.liabilities(), s.assets().subtract(s.liabilities()), breakdownJson);
     }
 
     @Transactional(readOnly = true)

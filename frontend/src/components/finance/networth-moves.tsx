@@ -65,6 +65,50 @@ export function netWorthMoves(history: NetWorthPoint[] | undefined, liveNetWorth
   };
 }
 
+export interface PortfolioPoint { date: string; value: number; invested: number; gain: number }
+
+/**
+ * Day-by-day and month-by-month change of an investment portfolio. The change is the move in gain (value minus
+ * money put in), so a SIP or a new purchase doesn't count as the portfolio going up; the value column is what it
+ * was worth. Today's point is the live figure.
+ */
+export function portfolioMoves(history: PortfolioPoint[] | undefined, live: { value: number; gain: number } | undefined,
+  today: string = isoDay(new Date())) {
+  const pts = [...(history ?? [])].sort((a, b) => a.date.localeCompare(b.date)).map((p) => ({ date: p.date, value: p.value, gain: p.gain }));
+  if (live) {
+    const t = { date: today, value: live.value, gain: live.gain };
+    if (pts.length && pts[pts.length - 1].date === today) pts[pts.length - 1] = t;
+    else pts.push(t);
+  }
+  const daily: Move[] = [];
+  for (let i = 1; i < pts.length; i++) {
+    const prev = pts[i - 1], p = pts[i];
+    const change = p.gain - prev.gain;
+    daily.push({ key: p.date, netWorth: p.value, change, pct: pctOf(change, prev.value), gapDays: daysBetween(prev.date, p.date) });
+  }
+  const byMonth = new Map<string, { first: (typeof pts)[number]; last: (typeof pts)[number] }>();
+  for (const p of pts) {
+    const m = p.date.slice(0, 7);
+    const e = byMonth.get(m);
+    if (!e) byMonth.set(m, { first: p, last: p });
+    else e.last = p;
+  }
+  const months = [...byMonth.entries()];
+  const monthly: Move[] = [];
+  months.forEach(([m, e], i) => {
+    const base = i > 0 ? months[i - 1][1].last : e.first;
+    if (i === 0 && e.first.date === e.last.date) return;
+    const change = e.last.gain - base.gain;
+    monthly.push({ key: m, netWorth: e.last.value, change, pct: pctOf(change, base.value), current: m === today.slice(0, 7), from: i === 0 ? e.first.date : undefined });
+  });
+  return {
+    daily: daily.reverse(),
+    monthly: monthly.reverse(),
+    today: daily.length && daily[0].key === today ? daily[0] : null,
+    thisMonth: monthly.length && monthly[0].current ? monthly[0] : null,
+  };
+}
+
 export function Signed({ value, pct, className }: { value: number; pct?: number | null; className?: string }) {
   const up = value >= 0;
   return (
@@ -78,16 +122,21 @@ export function Signed({ value, pct, className }: { value: number; pct?: number 
 const dayLabel = (d: string, o: Intl.DateTimeFormatOptions) => formatDate(d + "T12:00:00+05:30", o);
 const monthName = (m: string, o: Intl.DateTimeFormatOptions = { month: "short", year: "numeric" }) => dayLabel(m + "-15", o);
 
-export function NetWorthMoves({ daily, monthly }: { daily: Move[]; monthly: Move[] }) {
+export function NetWorthMoves({ daily, monthly, title = "How your net worth changed", valueLabel = "Net worth", note }: {
+  daily: Move[]; monthly: Move[]; title?: string; valueLabel?: string; note?: string;
+}) {
   const [view, setView] = useState<"daily" | "monthly">("daily");
   const [shown, setShown] = useState(31);
   const rows = view === "daily" ? daily : monthly;
   const chart = useMemo(() => [...(view === "daily" ? daily.slice(0, 30) : monthly.slice(0, 12))].reverse(), [view, daily, monthly]);
 
   return (
-    <section className="rounded-3xl border border-line bg-surface p-5" aria-label="How your net worth changed">
+    <section className="rounded-3xl border border-line bg-surface p-5" aria-label={title}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-lg font-semibold">How your net worth changed</h2>
+        <div>
+          <h2 className="font-display text-lg font-semibold">{title}</h2>
+          {note && <p className="text-xs text-ink-3">{note}</p>}
+        </div>
         <div role="tablist" aria-label="Period" className="inline-flex rounded-full bg-surface-2 p-1 text-sm">
           {(["daily", "monthly"] as const).map((v) => (
             <button key={v} role="tab" aria-selected={view === v} onClick={() => setView(v)}
@@ -100,7 +149,7 @@ export function NetWorthMoves({ daily, monthly }: { daily: Move[]; monthly: Move
 
       {rows.length === 0 ? (
         <p className="mt-4 rounded-2xl border border-dashed border-line p-6 text-center text-sm text-ink-3">
-          {view === "daily" ? "Arth saves your net worth every night. The daily change shows from tomorrow." : "The monthly change shows once there are two days saved."}
+          {view === "daily" ? "Arth saves this every night. The daily change shows from tomorrow." : "The monthly change shows once there are two days saved."}
         </p>
       ) : (
         <>
@@ -126,7 +175,7 @@ export function NetWorthMoves({ daily, monthly }: { daily: Move[]; monthly: Move
             <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3 border-b border-line bg-surface-2 px-4 py-2 text-xs font-medium text-ink-3">
               <span>{view === "daily" ? "Day" : "Month"}</span>
               <span className="text-right">Change</span>
-              <span className="text-right">{view === "daily" ? "Net worth" : "Month-end net worth"}</span>
+              <span className="text-right">{view === "daily" ? valueLabel : `Month-end ${valueLabel.toLowerCase()}`}</span>
             </div>
             <ul className="divide-y divide-line">
               {(view === "daily" ? rows.slice(0, shown) : rows).map((m) => (
