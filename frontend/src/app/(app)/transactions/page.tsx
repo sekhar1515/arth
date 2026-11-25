@@ -14,7 +14,7 @@ import { Input, Select } from "@/components/ui/input";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/states";
 import { useAccounts, useCategories, useInvalidateMoney, useTransactions } from "@/hooks/queries";
 import { api, ApiError, qs } from "@/lib/api";
-import { inr } from "@/lib/format";
+import { inr, UPI_APPS } from "@/lib/format";
 import type { DeleteResult, Transaction } from "@/types/api";
 
 function useDebounced<T>(value: T, ms = 300) {
@@ -128,7 +128,7 @@ function TransactionsInner() {
           </Select>
           <Select aria-label="Payment app" value={filters.provider ?? ""} onChange={(e) => set("provider", e.target.value)}>
             <option value="">Any app</option>
-            {["PhonePe", "Google Pay", "Paytm", "BHIM", "Amazon Pay"].map((p) => <option key={p}>{p}</option>)}
+            {UPI_APPS.map((p) => <option key={p}>{p}</option>)}
           </Select>
           <Select aria-label="Categorisation" value={filters.categorisationStatus ?? ""} onChange={(e) => set("categorisationStatus", e.target.value)}>
             <option value="">Any status</option>

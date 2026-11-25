@@ -74,3 +74,6 @@ export function initials(name: string): string {
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return (words[0][0] + words[1][0]).toUpperCase();
 }
+
+/** UPI apps a payment can be tagged with ("Paid with" / "Payment app"). */
+export const UPI_APPS = ["PhonePe", "Google Pay", "Paytm", "super.money", "CRED", "BHIM", "Amazon Pay", "WhatsApp Pay"] as const;

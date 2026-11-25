@@ -24,6 +24,7 @@ public final class UpiHandles {
         HANDLE_TO_APP.put("waicici", "WhatsApp Pay");
         HANDLE_TO_APP.put("wahdfcbank", "WhatsApp Pay");
         HANDLE_TO_APP.put("cnrb", "Canara ai1");
+        HANDLE_TO_APP.put("superyes", "super.money"); // Flipkart's super.money (Yes Bank)
     }
 
     private UpiHandles() {
