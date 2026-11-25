@@ -35,6 +35,14 @@ class NoteCategorisationTest {
     }
 
     @Test
+    void vegetablesAndFruitsGetTheirOwnSubCategories() {
+        assertEquals("Groceries > Vegetables", NoteDictionary.lookup("tomato onion", Direction.DEBIT).orElseThrow().categoryPath());
+        assertEquals("Groceries > Fruits", NoteDictionary.lookup("bananas", Direction.DEBIT).orElseThrow().categoryPath());
+        assertEquals("Groceries > Fruits", NoteDictionary.lookup("fruits", Direction.DEBIT).orElseThrow().categoryPath());
+        assertEquals("Groceries", NoteDictionary.lookup("kirana", Direction.DEBIT).orElseThrow().categoryPath());
+    }
+
+    @Test
     void templeNotesGoToTempleAndPooja() {
         assertEquals("Temple & Pooja", NoteDictionary.lookup("temple", Direction.DEBIT).orElseThrow().categoryPath());
         assertEquals("Temple & Pooja", NoteDictionary.lookup("mandir prasad", Direction.DEBIT).orElseThrow().categoryPath());
@@ -47,7 +55,7 @@ class NoteCategorisationTest {
 
     @Test
     void notesMapToCategoriesIncludingHinglish() {
-        assertEquals("Groceries", NoteDictionary.lookup("sabzi", Direction.DEBIT).orElseThrow().categoryPath());
+        assertEquals("Groceries > Vegetables", NoteDictionary.lookup("sabzi", Direction.DEBIT).orElseThrow().categoryPath());
         assertEquals("Groceries", NoteDictionary.lookup("Doodh + eggs", Direction.DEBIT).orElseThrow().categoryPath());
         assertEquals("Rent", NoteDictionary.lookup("Kiraya Nov", Direction.DEBIT).orElseThrow().categoryPath());
         assertEquals("Fuel", NoteDictionary.lookup("petrol", Direction.DEBIT).orElseThrow().categoryPath());

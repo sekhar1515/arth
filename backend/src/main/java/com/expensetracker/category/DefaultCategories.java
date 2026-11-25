@@ -18,7 +18,7 @@ public final class DefaultCategories {
     public static final List<Def> ALL = List.of(
             // Essential
             new Def("Rent", "EXPENSE", "Essential", "home", "#6366F1", List.of()),
-            new Def("Groceries", "EXPENSE", "Essential", "shopping-basket", "#22C55E", List.of()),
+            new Def("Groceries", "EXPENSE", "Essential", "shopping-basket", "#22C55E", List.of("Vegetables", "Fruits")),
             new Def("Bills & Utilities", "EXPENSE", "Essential", "zap", "#F59E0B",
                     List.of("Electricity", "Water", "Internet", "Mobile Recharge", "Gas")),
             new Def("Transportation", "EXPENSE", "Essential", "car", "#0EA5E9",
@@ -59,6 +59,13 @@ public final class DefaultCategories {
             new Def("Cashback & Rewards", "INCOME", "Income", "badge-percent", "#9333EA", List.of()),
             new Def(OTHER_INCOME, "INCOME", "Income", "circle-plus", "#6B7280", List.of())
     );
+
+    /** Sub-categories with an icon of their own; the rest use their parent's. */
+    private static final java.util.Map<String, String> CHILD_ICONS = java.util.Map.of("Vegetables", "carrot", "Fruits", "apple");
+
+    public static String childIcon(String childName, String parentIcon) {
+        return CHILD_ICONS.getOrDefault(childName, parentIcon);
+    }
 
     private DefaultCategories() {
     }

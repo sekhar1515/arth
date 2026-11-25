@@ -48,7 +48,7 @@ public class CategoryService {
             for (String childName : def.children()) {
                 Category child = new Category(userId, parent.getId(), childName, parent.getKind());
                 child.setGroupName(def.group());
-                child.setIcon(def.icon());
+                child.setIcon(DefaultCategories.childIcon(childName, def.icon()));
                 child.setColor(def.color());
                 child.setSystemDefault(true);
                 child.setSortOrder(childOrder++);

@@ -1,5 +1,5 @@
 import {
-  BadgePercent, Briefcase, Building, Car, CircleHelp, CirclePlus, Clapperboard, Coins, FileText, Fuel, Gift, GraduationCap,
+  Apple, BadgePercent, Briefcase, Carrot, Building, Car, CircleHelp, CirclePlus, Clapperboard, Coins, FileText, Fuel, Gift, GraduationCap,
   HandHeart, HeartPulse, Home, Landmark, Laptop, Palette, Percent, Plane, Receipt, Repeat, Shield, ShoppingBag, ShoppingBasket,
   Sparkles, Store, Tag, TrendingUp, Users, Utensils, Zap, type LucideIcon,
 } from "lucide-react";
@@ -27,7 +27,7 @@ const ICONS: Record<string, LucideIcon | typeof TempleIcon> = {
   plane: Plane, sparkles: Sparkles, palette: Palette, landmark: Landmark, "trending-up": TrendingUp, receipt: Receipt,
   "file-text": FileText, users: Users, gift: Gift, "hand-heart": HandHeart, "circle-help": CircleHelp, briefcase: Briefcase,
   laptop: Laptop, store: Store, building: Building, percent: Percent, coins: Coins, "badge-percent": BadgePercent,
-  "circle-plus": CirclePlus, tag: Tag, temple: TempleIcon,
+  "circle-plus": CirclePlus, tag: Tag, temple: TempleIcon, carrot: Carrot, apple: Apple,
 };
 
 export function CategoryIcon({ icon, color, className, size = "md" }: { icon?: string | null; color?: string | null; className?: string; size?: "sm" | "md" }) {
