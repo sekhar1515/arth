@@ -68,7 +68,7 @@ public class HoldingService {
             if (h.getInterestRate() == null) h.setInterestRate(InterestAccrual.defaultRate(h.getAssetClass()));
             if (h.getInterestRate() != null) h.setInterestAccruedTo(TimeConfig.today(clock)); // interest counts from today
         }
-        h = repository.save(h);
+        h = saveChecked(h, true);
         audit.record(userId, "HOLDING_CREATED", "holding", h.getId(), h.getAssetClass() + " " + h.getName());
         return toDto(h, TimeConfig.today(clock));
     }
@@ -83,7 +83,7 @@ public class HoldingService {
         if (h.getValuationMethod() == ValuationMethod.MANUAL && h.getInterestRate() != null && h.getInterestAccruedTo() == null) {
             h.setInterestAccruedTo(TimeConfig.today(clock)); // a rate was just added: interest counts from today
         }
-        repository.flush();
+        saveChecked(h, false);
         audit.record(userId, "HOLDING_UPDATED", "holding", id, h.getName());
         return toDto(h, TimeConfig.today(clock));
     }
@@ -334,6 +334,22 @@ public class HoldingService {
                 h.getManualValue(), h.getInterestRate(), h.getCompoundingPerYear(), h.getStartDate(), h.getMaturityDate(), h.getPriceAsOf(),
                 h.getPriceSource(), v.value(), v.gain(), v.gainPct(), v.estimated(), v.basis(), h.getNotes(), h.isArchived(), h.getVersion(),
                 h.getAccruedInterest(), h.getInterestAccruedTo(), h.getOwner());
+    }
+
+    /** Saves, turning "this fund is already there" into a message that says which list it's in. */
+    private Holding saveChecked(Holding h, boolean creating) {
+        try {
+            return creating ? repository.saveAndFlush(h) : flushAndReturn(h);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            String whose = h.getOwner() == HoldingOwner.PARENTS ? "your parents' investments" : "your investments";
+            throw ApiException.conflict("This fund is already in " + whose + " with the same folio and platform. Edit that one instead, "
+                    + "or enter a different folio or platform.");
+        }
+    }
+
+    private Holding flushAndReturn(Holding h) {
+        repository.flush();
+        return h;
     }
 
     private Holding require(UUID userId, UUID id) {
