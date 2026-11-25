@@ -16,6 +16,7 @@ import { inr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Account, AccountDeleteResult, AccountType } from "@/types/api";
 import { AmountInput } from "@/components/ui/amount-input";
+import { AccountMonthDialog } from "@/components/finance/account-month-dialog";
 
 const TYPE_META: Record<AccountType, { label: string; icon: typeof Landmark }> = {
   BANK: { label: "Bank account", icon: Landmark },
@@ -82,6 +83,7 @@ function AccountsInner() {
   const qc = useQueryClient();
   const welcome = useSearchParams().get("welcome") === "1";
   const [editing, setEditing] = useState<Account | null>(null);
+  const [viewing, setViewing] = useState<Account | null>(null);
   const [adding, setAdding] = useState(false);
   const active = accounts.data?.filter((a) => !a.archived) ?? [];
   const archived = accounts.data?.filter((a) => a.archived) ?? [];
@@ -117,7 +119,8 @@ function AccountsInner() {
               const M = TYPE_META[a.type];
               const Icon = M.icon;
               return (
-                <div key={a.id} className="rounded-3xl border border-line bg-surface p-5">
+                <div key={a.id} className="rounded-3xl border border-line bg-surface p-5 transition-colors hover:border-peacock-2/60">
+                  <button type="button" onClick={() => setViewing(a)} className="block w-full text-left" aria-label={`${a.name}: this month's transactions`}>
                   <div className="flex items-start justify-between">
                     <span className="grid size-10 place-items-center rounded-2xl bg-peacock-soft text-peacock"><Icon className="size-5" /></span>
                     {a.last4 && <span className="num text-sm text-ink-3">•• {a.last4}</span>}
@@ -130,7 +133,9 @@ function AccountsInner() {
                   <div className="mt-1 flex items-center gap-2 text-xs text-ink-3">
                     <span>{a.transactionCount} transactions</span>
                     {a.balanceSource === "OPENING_BALANCE" && <Pill>Starting balance only</Pill>}
+                    <span className="ml-auto font-semibold text-peacock">This month →</span>
                   </div>
+                  </button>
                   <div className="mt-4 flex gap-1">
                     <Button variant="ghost" size="sm" onClick={() => setEditing(a)}>Edit</Button>
                     <Button variant="ghost" size="sm" onClick={() => archive(a)}><Archive /> Archive</Button>
@@ -158,6 +163,7 @@ function AccountsInner() {
           )}
         </>
       )}
+      {viewing && <AccountMonthDialog accountId={viewing.id} name={viewing.name} isCard={viewing.type === "CREDIT_CARD"} onClose={() => setViewing(null)} />}
       {deleting && <DeleteAccountDialog account={deleting} onClose={() => setDeleting(null)} />}
       {adding && <AccountDialog open onOpenChange={setAdding} />}
       {editing && <AccountDialog account={editing} open onOpenChange={(o) => !o && setEditing(null)} />}
