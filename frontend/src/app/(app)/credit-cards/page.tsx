@@ -16,6 +16,7 @@ import { api, ApiError } from "@/lib/api";
 import { formatDate, inr } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { CreditCard, DueState } from "@/types/api";
+import { AccountMonthDialog } from "@/components/finance/account-month-dialog";
 
 const DUE: Record<DueState, { label: string; tone: "in" | "attention" | "out" | "neutral" | "brand" }> = {
   NO_DUES: { label: "Nothing due", tone: "neutral" }, PAID: { label: "Paid in full", tone: "in" }, PARTIALLY_PAID: { label: "Part paid", tone: "attention" },
@@ -56,9 +57,12 @@ export default function CreditCardsPage() {
 
 function Card({ c, onEdit }: { c: CreditCard; onEdit: () => void }) {
   const [why, setWhy] = useState(false);
+  const [viewing, setViewing] = useState(false);
   return (
     <article className="overflow-hidden rounded-3xl border border-line bg-surface">
-      <div className="relative bg-gradient-to-br from-peacock to-[#0a4246] p-5 text-white">
+      {viewing && <AccountMonthDialog accountId={c.accountId} name={c.name} isCard onClose={() => setViewing(false)} />}
+      <button type="button" onClick={() => setViewing(true)} aria-label={`${c.name}: this month's transactions`}
+        className="relative block w-full bg-gradient-to-br from-peacock to-[#0a4246] p-5 text-left text-white hover:brightness-110">
         <div className="flex items-start justify-between">
           <div>
             <p className="font-display text-lg font-semibold">{c.name}</p>
@@ -74,7 +78,8 @@ function Card({ c, onEdit }: { c: CreditCard; onEdit: () => void }) {
             <p className="mt-1 text-xs text-white/70">{c.utilisationPct}% of {inr(c.creditLimit)} used, {inr(c.available)} available</p>
           </div>
         )}
-      </div>
+        <p className="mt-3 text-xs font-semibold text-white/90">This month&apos;s transactions →</p>
+      </button>
       <div className="p-5">
         {!c.configured ? (
           <div className="text-sm">
