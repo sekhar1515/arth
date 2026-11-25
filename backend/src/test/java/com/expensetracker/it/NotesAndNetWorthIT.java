@@ -252,6 +252,11 @@ class NotesAndNetWorthIT extends IntegrationTestBase {
         }
         assertTrue(getJson(s, "/api/networth/portfolio?owner=PARENTS").get("holdingsValue").decimalValue().signum() > 0);
         assertEquals(1, getJson(s, "/api/networth/portfolio?owner=PARENTS").get("holdingsCount").asInt());
+        // opening the tab saved today's point for the parents' portfolio, separate from yours
+        JsonNode hist = getJson(s, "/api/networth/portfolio/history?owner=PARENTS");
+        assertEquals(1, hist.size());
+        assertTrue(hist.get(0).get("value").decimalValue().signum() > 0);
+        assertEquals(0, getJson(s, "/api/networth/portfolio/history?owner=SELF").size(), "your tab not opened yet");
 
         // adding it by hand for parents works too; a true duplicate gets a clear message
         Map<String, Object> manual = new HashMap<>(Map.of("assetClass", "MUTUAL_FUND", "name", "PPFAS Flexi", "isin", "INF879O01027",
