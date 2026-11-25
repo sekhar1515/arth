@@ -39,7 +39,8 @@ function Check({ checked, onChange, label }: { checked: boolean; onChange: () =>
   );
 }
 
-export function TransactionTable({ rows, onOpen, selection }: { rows: Transaction[]; onOpen: (t: Transaction) => void; selection?: Selection }) {
+/** {@code accountView}: inside one account's view, so no Account column, and money out in red / money in in green. */
+export function TransactionTable({ rows, onOpen, selection, accountView }: { rows: Transaction[]; onOpen: (t: Transaction) => void; selection?: Selection; accountView?: boolean }) {
   const allSelected = !!selection && rows.length > 0 && rows.every((r) => selection.selected.has(r.id));
   return (
     <div className="hidden overflow-hidden rounded-3xl border border-line bg-surface md:block">
@@ -54,7 +55,7 @@ export function TransactionTable({ rows, onOpen, selection }: { rows: Transactio
             <th className="px-4 py-2.5 font-semibold">Date</th>
             <th className="px-4 py-2.5 font-semibold">Merchant</th>
             <th className="px-4 py-2.5 font-semibold">Category</th>
-            <th className="px-4 py-2.5 font-semibold">Account</th>
+            {!accountView && <th className="px-4 py-2.5 font-semibold">Account</th>}
             <th className="px-4 py-2.5 text-right font-semibold">Amount</th>
           </tr>
         </thead>
@@ -69,7 +70,7 @@ export function TransactionTable({ rows, onOpen, selection }: { rows: Transactio
                 {formatDate(t.txnAt, { day: "numeric", month: "short" })}
                 {t.timeKnown && <span className="ml-1.5 text-xs text-ink-3">{formatTime(t.txnAt)}</span>}
               </td>
-              <td className="max-w-[260px] px-4 py-3">
+              <td className={cn("px-4 py-3", accountView ? "max-w-[220px]" : "max-w-[260px]")}>
                 <button className="flex w-full items-center gap-2.5 text-left" onClick={(e) => { e.stopPropagation(); onOpen(t); }}>
                   <Monogram name={merchantName(t)} className="size-8 rounded-xl text-[11px]" />
                   <span className="min-w-0">
@@ -81,8 +82,8 @@ export function TransactionTable({ rows, onOpen, selection }: { rows: Transactio
                 </button>
               </td>
               <td className="px-4 py-3"><CategoryCell t={t} /></td>
-              <td className="px-4 py-3 text-ink-2">{t.account?.name}</td>
-              <td className={cn("num whitespace-nowrap px-4 py-3 text-right font-semibold", t.direction === "CREDIT" && "text-in")}>{signed(t.amount, t.direction)}</td>
+              {!accountView && <td className="px-4 py-3 text-ink-2">{t.account?.name}</td>}
+              <td className={cn("num whitespace-nowrap px-4 py-3 text-right font-semibold", t.direction === "CREDIT" ? "text-in" : accountView && "text-out")}>{signed(t.amount, t.direction)}</td>
             </tr>
           ))}
         </tbody>
@@ -91,7 +92,7 @@ export function TransactionTable({ rows, onOpen, selection }: { rows: Transactio
   );
 }
 
-export function TransactionCards({ rows, onOpen, selection, selecting }: { rows: Transaction[]; onOpen: (t: Transaction) => void; selection?: Selection; selecting?: boolean }) {
+export function TransactionCards({ rows, onOpen, selection, selecting, accountView }: { rows: Transaction[]; onOpen: (t: Transaction) => void; selection?: Selection; selecting?: boolean; accountView?: boolean }) {
   let lastDay = "";
   return (
     <div className="md:hidden">
@@ -111,7 +112,7 @@ export function TransactionCards({ rows, onOpen, selection, selecting }: { rows:
                 <span className="block truncate text-sm font-semibold">{merchantName(t)}</span>
                 <span className="mt-0.5 block"><CategoryCell t={t} /></span>
               </span>
-              <span className={cn("num text-[15px] font-semibold", t.direction === "CREDIT" && "text-in")}>{signed(t.amount, t.direction)}</span>
+              <span className={cn("num text-[15px] font-semibold", t.direction === "CREDIT" ? "text-in" : accountView && "text-out")}>{signed(t.amount, t.direction)}</span>
             </button>
           </div>
         );
