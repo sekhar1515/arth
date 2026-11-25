@@ -39,7 +39,13 @@ public final class NoteDictionary {
             // household
             out("Rent", "rent", "house rent", "room rent", "pg rent", "kiraya", "kiraaya", "pg", "hostel"),
             out("Household Help", "maid", "bai", "cook", "driver salary", "driver", "househelp", "house help", "servant", "watchman", "security guard", "cleaning"),
-            out("Groceries", "grocery", "groceries", "kirana", "ration", "sabzi", "sabji", "vegetables", "veggies", "veg", "fruits", "fruit",
+            // vegetables and fruits first, so "sabzi" goes to its own sub-category (falls back to Groceries if removed)
+            out("Groceries > Vegetables", "sabzi", "sabji", "subzi", "vegetables", "vegetable", "veggies", "veg", "kuragayalu", "kayagura",
+                    "tarkari", "tomato", "tomatoes", "onion", "onions", "potato", "potatoes", "aloo", "pyaz", "pyaaz", "tamatar", "greens",
+                    "palak", "coriander", "dhaniya", "kothimeera", "curry leaves", "green chilli", "mirchi", "ginger", "garlic"),
+            out("Groceries > Fruits", "fruits", "fruit", "phal", "pandlu", "banana", "bananas", "kela", "apples", "mango", "mangoes",
+                    "aam", "papaya", "grapes", "orange", "oranges", "pomegranate", "anar", "watermelon", "guava", "coconut", "nariyal", "tender coconut"),
+            out("Groceries", "grocery", "groceries", "kirana", "ration",
                     "milk", "doodh", "dudh", "eggs", "anda", "atta", "rice", "chawal", "dal", "provisions", "supermarket", "dmart"),
             out("Bills & Utilities > Electricity", "electricity", "electric bill", "current bill", "light bill", "bijli", "eb bill", "power bill"),
             out("Bills & Utilities > Water", "water bill", "water", "pani", "water can", "bisleri"),

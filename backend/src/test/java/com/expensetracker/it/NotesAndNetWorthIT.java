@@ -49,7 +49,7 @@ class NotesAndNetWorthIT extends IntegrationTestBase {
         assertEquals(5, r.get("withNotes").asInt(), "four Note cells + one UPI remark");
 
         JsonNode sabzi = txnByAmount(s, "650.00");
-        assertEquals("Groceries", sabzi.get("suggestedCategory").get("path").asText(), "same payee, note decides");
+        assertEquals("Groceries > Vegetables", sabzi.get("suggestedCategory").get("path").asText(), "same payee, note decides");
         assertEquals("sabzi", sabzi.get("notes").asText());
         assertEquals("Rent", txnByAmount(s, "15000.00").get("suggestedCategory").get("path").asText());
         JsonNode lunch = txnByAmount(s, "1200.00");
@@ -93,7 +93,7 @@ class NotesAndNetWorthIT extends IntegrationTestBase {
         body.put("date", "2026-11-12");
         body.put("notes", "sabzi");
         UUID third = UUID.fromString(postJson(s, "/api/transactions", body, 201).get("id").asText());
-        assertEquals("Groceries", txn(s, third).get("suggestedCategory").get("path").asText());
+        assertEquals("Groceries > Vegetables", txn(s, third).get("suggestedCategory").get("path").asText());
     }
 
     @Test
@@ -112,7 +112,7 @@ class NotesAndNetWorthIT extends IntegrationTestBase {
                 """);
         assertEquals(1, r.get("updatedWithNotes").asInt());
         assertEquals(1, getJson(s, "/api/transactions").get("totalElements").asLong());
-        assertEquals("Groceries", txnByAmount(s, "650.00").get("suggestedCategory").get("path").asText());
+        assertEquals("Groceries > Vegetables", txnByAmount(s, "650.00").get("suggestedCategory").get("path").asText());
     }
 
     @Test

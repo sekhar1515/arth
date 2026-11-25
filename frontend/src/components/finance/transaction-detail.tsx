@@ -4,7 +4,7 @@ import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
-import { formatDateTime, inr, merchantName, METHOD_LABEL, relativeTime, signed, SOURCE_LABEL } from "@/lib/format";
+import { formatDateTime, inr, merchantName, METHOD_LABEL, relativeTime, signed, SOURCE_LABEL, UPI_APPS } from "@/lib/format";
 import type { Account, Category, Transaction } from "@/types/api";
 import { useInvalidateMoney, useTransaction, useUpdateTransaction } from "@/hooks/queries";
 import { useConfirm } from "@/components/ui/confirm";
@@ -111,7 +111,7 @@ export function TransactionDetailDialog({ txn, categories, accounts, onClose }: 
                 <Field label="Payment app" htmlFor="d-app">
                   <Select id="d-app" value={form.paymentProvider} onChange={(e) => setForm({ ...form, paymentProvider: e.target.value })}>
                     <option value="">Not known</option>
-                    {["PhonePe", "Google Pay", "Paytm", "BHIM", "Amazon Pay", "CRED", "WhatsApp Pay"].map((p) => <option key={p}>{p}</option>)}
+                    {UPI_APPS.map((p) => <option key={p}>{p}</option>)}
                   </Select>
                 </Field>
                 <Field label="Rename merchant" htmlFor="d-merchant"><Input id="d-merchant" placeholder={merchantName(t)} value={form.merchant} onChange={(e) => setForm({ ...form, merchant: e.target.value })} /></Field>

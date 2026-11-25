@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { EmptyState, ErrorState, Pill, Skeleton } from "@/components/ui/states";
 import { useAccounts, useBulkConfirm, useCategories, useReview } from "@/hooks/queries";
-import { formatDate, merchantName, signed } from "@/lib/format";
+import { formatDate, merchantName, signed, UPI_APPS } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export default function ReviewPage() {
@@ -76,7 +76,7 @@ export default function ReviewPage() {
           <Input placeholder="Merchant or text" aria-label="Merchant" value={filters.q ?? ""} onChange={(e) => set("q", e.target.value)} />
           <Select aria-label="Payment app" value={filters.provider ?? ""} onChange={(e) => set("provider", e.target.value)}>
             <option value="">Any payment app</option>
-            {["PhonePe", "Google Pay", "Paytm", "BHIM", "Amazon Pay"].map((p) => <option key={p}>{p}</option>)}
+            {UPI_APPS.map((p) => <option key={p}>{p}</option>)}
           </Select>
           <Select aria-label="Type" value={filters.direction ?? ""} onChange={(e) => set("direction", e.target.value)}>
             <option value="">Money in and out</option>

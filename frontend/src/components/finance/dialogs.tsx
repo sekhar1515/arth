@@ -4,7 +4,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
-import { inr, isoDay } from "@/lib/format";
+import { inr, isoDay, UPI_APPS } from "@/lib/format";
 import type { Account, Category, CategoryKind, Transaction } from "@/types/api";
 import { useCreateTransaction, useMarkTransfer, useSplit } from "@/hooks/queries";
 import { useQueryClient } from "@tanstack/react-query";
@@ -197,6 +197,7 @@ export function ManualTransactionDialog({ accounts, categories, open, onOpenChan
     time: "",
     merchant: "",
     paymentMethod: "CASH",
+    paymentProvider: "",
     notes: "",
     categoryId: "",
   });
@@ -226,9 +227,22 @@ export function ManualTransactionDialog({ accounts, categories, open, onOpenChan
           <Field label={form.direction === "DEBIT" ? "Paid to" : "Received from"} htmlFor="m-merchant">
             <Input id="m-merchant" value={form.merchant} onChange={(e) => set({ merchant: e.target.value })} placeholder="e.g. Chai stall" />
           </Field>
-          <Field label="Paid with" htmlFor="m-method">
-            <Select id="m-method" value={form.paymentMethod} onChange={(e) => set({ paymentMethod: e.target.value })}>
-              {["CASH", "UPI", "CARD", "IMPS", "NEFT", "OTHER"].map((m) => <option key={m} value={m}>{m === "CASH" ? "Cash" : m === "CARD" ? "Card" : m === "OTHER" ? "Other" : m}</option>)}
+          <Field label={form.direction === "DEBIT" ? "Paid with" : "Received via"} htmlFor="m-method">
+            <Select id="m-method" value={form.paymentProvider ? `UPI:${form.paymentProvider}` : form.paymentMethod}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v.startsWith("UPI:")) set({ paymentMethod: "UPI", paymentProvider: v.slice(4) });
+                else set({ paymentMethod: v, paymentProvider: "" });
+              }}>
+              <option value="CASH">Cash</option>
+              <optgroup label="UPI">
+                <option value="UPI">UPI (any app)</option>
+                {UPI_APPS.map((app) => <option key={app} value={`UPI:${app}`}>{app}</option>)}
+              </optgroup>
+              <option value="CARD">Card</option>
+              <option value="IMPS">IMPS</option>
+              <option value="NEFT">NEFT</option>
+              <option value="OTHER">Other</option>
             </Select>
           </Field>
           <Field label="Date" htmlFor="m-date">
@@ -249,6 +263,7 @@ export function ManualTransactionDialog({ accounts, categories, open, onOpenChan
         <Button className="mt-5 w-full" disabled={!form.amount || Number(form.amount) <= 0 || !form.accountId || create.isPending}
           onClick={() => create.mutate({
             ...form, time: form.time ? form.time + ":00" : null, categoryId: form.categoryId || null, merchant: form.merchant || null, notes: form.notes || null,
+            paymentProvider: form.paymentProvider || null,
           }, {
             onSuccess: () => { toast.success("Transaction added"); onOpenChange(false); set({ amount: "", merchant: "", notes: "", categoryId: "" }); },
             onError: (e) => toast.error(errorText(e)),
