@@ -71,8 +71,10 @@ public class NetWorthController {
     /** One owner's investments on their own: SELF (yours) or PARENTS (tracked separately, not in your net worth). */
     @GetMapping("/portfolio")
     public NetWorthService.Summary portfolio(@RequestParam(defaultValue = "SELF") HoldingOwner owner) {
+        refresher.refreshIfStale("investments opened"); // newer NAVs/closes download in the background, as for /networth
         UUID userId = CurrentUser.id();
         interest.accrueFor(userId);
+        plans.runDue(userId); // SIP units/debits that fell due, for whichever owner's tab is open
         var s = netWorth.portfolio(userId, owner);
         portfolioHistory.save(userId, owner, s); // today's point, so the day's and month's change are current
         return s;
