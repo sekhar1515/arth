@@ -32,3 +32,15 @@ describe("account month view", () => {
     await waitFor(() => expect(urls.some((u) => u.includes("from=2026-10-01") && u.includes("to=2026-10-31"))).toBe(true));
   });
 });
+
+describe("account month list", () => {
+  it("shows the amount in red for money out and green for money in, with no Account column", async () => {
+    const { TransactionTable } = await import("@/components/finance/transaction-list");
+    const { render } = await import("@testing-library/react");
+    render(<TransactionTable accountView onOpen={() => undefined}
+      rows={[txn({ id: "d", amount: 500, direction: "DEBIT" }), txn({ id: "c", amount: 2000, direction: "CREDIT" })]} />);
+    expect(screen.queryByRole("columnheader", { name: "Account" })).toBeNull();
+    expect(screen.getByText("−₹500")).toHaveClass("text-out");
+    expect(screen.getByText("+₹2,000")).toHaveClass("text-in");
+  });
+});

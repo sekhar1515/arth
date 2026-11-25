@@ -47,7 +47,7 @@ export function AccountMonthDialog({ accountId, name, isCard, onClose }: { accou
   return (
     <>
       <Dialog open onOpenChange={(o) => !o && onClose()}>
-        <DialogContent title={name} description={isCard ? "Card spends and payments for the month." : "Money in and out of this account for the month."} wide>
+        <DialogContent title={name} description={isCard ? "Card spends and payments for the month." : "Money in and out of this account for the month."} wide className="sm:max-w-3xl">
           <div className="flex items-center justify-between gap-2">
             <Button variant="ghost" size="icon" aria-label="Previous month" onClick={() => setMonth((m) => shiftMonth(m, -1))}><ChevronLeft /></Button>
             <p className="font-display text-base font-semibold">{monthName}{isCurrent && <span className="ml-1 text-xs font-normal text-ink-3">so far</span>}</p>
@@ -71,8 +71,8 @@ export function AccountMonthDialog({ accountId, name, isCard, onClose }: { accou
                 : rows.length === 0 ? <EmptyState icon={<ListOrdered />} title={`No transactions in ${monthName}`} body="Use the arrows to look at another month." />
                   : (
                     <>
-                      <TransactionTable rows={rows} onOpen={setOpen} />
-                      <TransactionCards rows={rows} onOpen={setOpen} />
+                      <TransactionTable rows={rows} onOpen={setOpen} accountView />
+                      <TransactionCards rows={rows} onOpen={setOpen} accountView />
                     </>
                   )}
           </div>
