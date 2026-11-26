@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { inr, isoDay, UPI_APPS } from "@/lib/format";
 import type { Account, Category, CategoryKind, Transaction } from "@/types/api";
-import { useCreateTransaction, useMarkTransfer, useSplit } from "@/hooks/queries";
+import { useCreateTransaction, useInvalidateMoney, useMarkTransfer, useSplit } from "@/hooks/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -202,19 +202,26 @@ export function ManualTransactionDialog({ accounts, categories, open, onOpenChan
     categoryId: "",
   });
   const set = (patch: Partial<typeof form>) => setForm({ ...form, ...patch });
+  const [transfer, setTransfer] = useState(false);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Add a transaction" description="For cash and anything your bank alerts or statements don't cover." wide>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="flex rounded-full bg-surface-2 p-1 sm:col-span-2" role="radiogroup" aria-label="Type">
-            {(["DEBIT", "CREDIT"] as const).map((d) => (
-              <button key={d} role="radio" aria-checked={form.direction === d} onClick={() => set({ direction: d, categoryId: "" })}
-                className={`flex-1 rounded-full py-1.5 text-sm font-semibold ${form.direction === d ? "bg-surface shadow-lift" : "text-ink-2"}`}>
-                {d === "DEBIT" ? "Money out" : "Money in"}
+      <DialogContent title={transfer ? "Move money between your accounts" : "Add a transaction"}
+        description={transfer ? "Money out of one account and into another. It's a transfer, so it isn't counted as spending or income." : "For cash and anything your bank alerts or statements don't cover."} wide>
+        <div className="mb-4 flex rounded-full bg-surface-2 p-1" role="radiogroup" aria-label="Type">
+          {(["DEBIT", "CREDIT", "TRANSFER"] as const).map((d) => {
+            const on = d === "TRANSFER" ? transfer : !transfer && form.direction === d;
+            return (
+              <button key={d} role="radio" aria-checked={on}
+                onClick={() => { if (d === "TRANSFER") setTransfer(true); else { setTransfer(false); set({ direction: d, categoryId: "" }); } }}
+                className={`flex-1 rounded-full py-1.5 text-sm font-semibold ${on ? "bg-surface shadow-lift" : "text-ink-2"}`}>
+                {d === "DEBIT" ? "Money out" : d === "CREDIT" ? "Money in" : "Transfer"}
               </button>
-            ))}
-          </div>
+            );
+          })}
+        </div>
+        {transfer ? <TransferFields accounts={active} defaultFrom={form.accountId} onDone={() => onOpenChange(false)} /> : (<>
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Amount (₹)" htmlFor="m-amount">
             <AmountInput id="m-amount" className="num text-lg" value={form.amount} placeholder="0.00 or a sum, e.g. 450+120"
               onValueChange={(v) => setForm((f) => ({ ...f, amount: v }))} />
@@ -270,7 +277,86 @@ export function ManualTransactionDialog({ accounts, categories, open, onOpenChan
           })}>
           Add transaction
         </Button>
+        </>)}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Transfer between two of your own accounts: both sides are recorded and linked in one step. */
+function TransferFields({ accounts, defaultFrom, onDone }: { accounts: Account[]; defaultFrom: string; onDone: () => void }) {
+  const invalidate = useInvalidateMoney();
+  const banks = accounts;
+  const firstOther = (id: string) => banks.find((a) => a.id !== id)?.id ?? "";
+  const from0 = banks.some((a) => a.id === defaultFrom) && banks.find((a) => a.id === defaultFrom)?.type !== "CASH" ? defaultFrom : banks[0]?.id ?? "";
+  const [f, setF] = useState({ from: from0, to: firstOther(from0), amount: "", date: isoDay(new Date()), time: "", method: "UPI", notes: "" });
+  const [busy, setBusy] = useState(false);
+  const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
+  const same = f.from === f.to;
+
+  if (banks.length < 2) {
+    return <p className="rounded-2xl bg-surface-2 p-4 text-sm text-ink-2">Add a second account first (Accounts), then you can move money between them.</p>;
+  }
+
+  async function save() {
+    setBusy(true);
+    try {
+      const r = await api.post<{ matchedExisting: boolean }>("/transactions/transfer", {
+        fromAccountId: f.from, toAccountId: f.to, amount: f.amount, date: f.date, time: f.time ? f.time + ":00" : null,
+        paymentMethod: f.method, notes: f.notes || null,
+      });
+      invalidate();
+      toast.success(r.matchedExisting ? "Transfer recorded and matched with the money-in already in the other account" : "Transfer recorded");
+      onDone();
+    } catch (e) {
+      toast.error(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const name = (id: string) => banks.find((a) => a.id === id)?.name ?? "";
+  return (
+    <>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Amount (₹)" htmlFor="t-amount">
+          <AmountInput id="t-amount" className="num text-lg" value={f.amount} placeholder="0.00" onValueChange={(v) => set({ amount: v })} />
+        </Field>
+        <Field label="Sent via" htmlFor="t-method">
+          <Select id="t-method" value={f.method} onChange={(e) => set({ method: e.target.value })}>
+            {[["UPI", "UPI"], ["IMPS", "IMPS"], ["NEFT", "NEFT"], ["RTGS", "RTGS"], ["CASH", "Cash (withdrawn or deposited)"], ["OTHER", "Other"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </Select>
+        </Field>
+        <Field label="From" htmlFor="t-from">
+          <Select id="t-from" value={f.from} onChange={(e) => set({ from: e.target.value, to: e.target.value === f.to ? firstOther(e.target.value) : f.to })}>
+            {banks.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </Select>
+        </Field>
+        <Field label="To" htmlFor="t-to">
+          <Select id="t-to" value={f.to} onChange={(e) => set({ to: e.target.value })}>
+            {banks.map((a) => <option key={a.id} value={a.id} disabled={a.id === f.from}>{a.name}</option>)}
+          </Select>
+        </Field>
+        <Field label="Date" htmlFor="t-date">
+          <Input id="t-date" type="date" value={f.date} max={isoDay(new Date())} onChange={(e) => set({ date: e.target.value })} />
+        </Field>
+        <Field label="Time (optional)" htmlFor="t-time">
+          <Input id="t-time" type="time" value={f.time} onChange={(e) => set({ time: e.target.value })} />
+        </Field>
+        <div className="sm:col-span-2">
+          <Field label="Note (optional)" htmlFor="t-note">
+            <Input id="t-note" value={f.notes} onChange={(e) => set({ notes: e.target.value })} placeholder="e.g. to savings, card bill" />
+          </Field>
+        </div>
+      </div>
+      {f.amount && !same && (
+        <p className="mt-4 rounded-2xl bg-surface-2 px-4 py-3 text-sm text-ink-2">
+          <span className="num font-semibold text-out">−{inr(Number(f.amount))}</span> from {name(f.from)}, <span className="num font-semibold text-in">+{inr(Number(f.amount))}</span> to {name(f.to)}
+        </p>
+      )}
+      <Button className="mt-5 w-full" disabled={busy || !f.amount || Number(f.amount) <= 0 || same || !f.from || !f.to} onClick={save}>
+        {busy ? "Saving…" : "Record transfer"}
+      </Button>
+    </>
   );
 }

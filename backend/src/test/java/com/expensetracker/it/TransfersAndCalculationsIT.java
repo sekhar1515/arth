@@ -41,6 +41,36 @@ class TransfersAndCalculationsIT extends IntegrationTestBase {
     }
 
     @Test
+    void transferBetweenYourOwnAccountsInOneStep() throws Exception {
+        Session s = register();
+        UUID hdfc = createAccount(s, "HDFC", "BANK", "4821", "50000.00");
+        UUID sbi = createAccount(s, "SBI", "BANK", "3307", "1000.00");
+        JsonNode res = postJson(s, "/api/transactions/transfer", Map.of("fromAccountId", hdfc, "toAccountId", sbi, "amount", "7500.00",
+                "date", "2026-10-07", "paymentMethod", "IMPS", "notes", "move to savings"), 201);
+        assertFalse(res.get("matchedExisting").asBoolean());
+        assertEquals("TRANSFER", res.get("out").get("kind").asText());
+        assertEquals("TRANSFER", txn(s, UUID.fromString(res.get("inTransactionId").asText())).get("kind").asText());
+        assertMoney("42500.00", account(s, hdfc).get("balance"));
+        assertMoney("8500.00", account(s, sbi).get("balance"));
+        JsonNode summary = summary(s, "2026-10-01", "2026-10-31");
+        assertMoney("0", summary.get("income"));
+        assertMoney("0", summary.get("expenses"));
+        postJson(s, "/api/transactions/transfer", Map.of("fromAccountId", hdfc, "toAccountId", hdfc, "amount", "1", "date", "2026-10-07"), 400);
+    }
+
+    @Test
+    void settingTheBalanceAdjustsTheStartingBalanceOnly() throws Exception {
+        Session s = register();
+        UUID hdfc = createAccount(s, "HDFC", "BANK", "4821", "10000.00");
+        manual(s, hdfc, "DEBIT", "2500.00", "2026-10-05", "Shop");
+        assertMoney("7500.00", account(s, hdfc).get("balance"));
+        JsonNode a = postJson(s, "/api/accounts/" + hdfc + "/balance", Map.of("balance", "8120.50"), 200);
+        assertMoney("8120.50", a.get("balance"));
+        assertMoney("10620.50", a.get("openingBalance"));
+        assertEquals(1, a.get("transactionCount").asInt(), "transactions untouched");
+    }
+
+    @Test
     void transferPairsWithAnExistingCounterpartInsteadOfCreatingOne() throws Exception {
         Session s = register();
         UUID hdfc = createAccount(s, "HDFC", "BANK", "4821", "0");

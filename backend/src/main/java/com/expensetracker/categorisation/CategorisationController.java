@@ -36,8 +36,10 @@ public class CategorisationController {
 
     private final CategorisationService service;
     private final TransactionService transactions;
+    private final TransferService transfers;
 
-    public CategorisationController(CategorisationService service, TransactionService transactions) {
+    public CategorisationController(CategorisationService service, TransactionService transactions, TransferService transfers) {
+        this.transfers = transfers;
         this.service = service;
         this.transactions = transactions;
     }
@@ -54,6 +56,13 @@ public class CategorisationController {
         UUID userId = CurrentUser.id();
         service.setSplits(userId, id, lines);
         return transactions.get(userId, id);
+    }
+
+    /** Move money between two of your own accounts (both sides, linked as a transfer). */
+    @PostMapping("/transactions/transfer")
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.CREATED)
+    public TransferService.TransferResult transfer(@RequestBody TransferService.TransferRequest req) {
+        return transfers.transfer(CurrentUser.id(), req);
     }
 
     @PostMapping("/transactions/{id}/mark-transfer")

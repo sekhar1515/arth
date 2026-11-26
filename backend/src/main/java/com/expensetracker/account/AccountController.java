@@ -36,6 +36,15 @@ public class AccountController {
         return service.list(userId);
     }
 
+    public record BalanceRequest(java.math.BigDecimal balance) {
+    }
+
+    /** Set the balance shown by your bank today (adjusts the starting balance by the difference). */
+    @PostMapping("/{id}/balance")
+    public AccountService.AccountDto setBalance(@PathVariable UUID id, @RequestBody BalanceRequest req) {
+        return service.setBalance(CurrentUser.id(), id, req.balance());
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public AccountService.AccountDto create(@RequestBody AccountService.AccountRequest req) {

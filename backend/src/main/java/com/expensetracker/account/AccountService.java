@@ -110,6 +110,25 @@ public class AccountService {
         return list(userId).stream().filter(d -> d.id().equals(id)).findFirst().orElseThrow();
     }
 
+    /**
+     * "My bank app shows X": sets the account's balance today to X by moving its starting balance by the difference.
+     * Transactions stay as they are, so totals and history keep their numbers.
+     */
+    @Transactional
+    public AccountDto setBalance(UUID userId, UUID id, BigDecimal target) {
+        if (target == null) throw ApiException.badRequest("Enter the balance");
+        if (target.scale() > 2) target = target.setScale(2, java.math.RoundingMode.HALF_UP);
+        FinancialAccount a = require(userId, id);
+        BigDecimal current = balances(userId).getOrDefault(id, new BalanceRow(a.getOpeningBalance(), 0)).balance();
+        BigDecimal diff = target.subtract(current);
+        if (diff.signum() != 0) {
+            a.setOpeningBalance(a.getOpeningBalance().add(diff).setScale(2, java.math.RoundingMode.HALF_UP));
+            repository.flush();
+            audit.record(userId, "ACCOUNT_BALANCE_SET", "financial_account", id, current + " -> " + target);
+        }
+        return list(userId).stream().filter(d -> d.id().equals(id)).findFirst().orElseThrow();
+    }
+
     @Transactional
     public void setArchived(UUID userId, UUID id, boolean archived) {
         FinancialAccount a = require(userId, id);
