@@ -84,6 +84,7 @@ function AccountsInner() {
   const welcome = useSearchParams().get("welcome") === "1";
   const [editing, setEditing] = useState<Account | null>(null);
   const [viewing, setViewing] = useState<Account | null>(null);
+  const [balanceFor, setBalanceFor] = useState<Account | null>(null);
   const [adding, setAdding] = useState(false);
   const active = accounts.data?.filter((a) => !a.archived) ?? [];
   const archived = accounts.data?.filter((a) => a.archived) ?? [];
@@ -137,6 +138,7 @@ function AccountsInner() {
                   </div>
                   </button>
                   <div className="mt-4 flex gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => setBalanceFor(a)}>Set balance</Button>
                     <Button variant="ghost" size="sm" onClick={() => setEditing(a)}>Edit</Button>
                     <Button variant="ghost" size="sm" onClick={() => archive(a)}><Archive /> Archive</Button>
                     <Button variant="ghost" size="sm" className="ml-auto text-out hover:bg-out-soft hover:text-out" onClick={() => setDeleting(a)} aria-label={`Delete ${a.name}`}><Trash2 /></Button>
@@ -163,6 +165,7 @@ function AccountsInner() {
           )}
         </>
       )}
+      {balanceFor && <SetBalanceDialog account={balanceFor} onClose={() => setBalanceFor(null)} />}
       {viewing && <AccountMonthDialog accountId={viewing.id} name={viewing.name} isCard={viewing.type === "CREDIT_CARD"} onClose={() => setViewing(null)} />}
       {deleting && <DeleteAccountDialog account={deleting} onClose={() => setDeleting(null)} />}
       {adding && <AccountDialog open onOpenChange={setAdding} />}
@@ -213,4 +216,56 @@ function DeleteAccountDialog({ account, onClose }: { account: Account; onClose: 
 
 export default function AccountsPage() {
   return <Suspense fallback={<Skeleton className="h-64" />}><AccountsInner /></Suspense>;
+}
+
+/**
+ * "My bank app shows X today": sets the balance by moving the starting balance by the difference, so it matches the
+ * bank without adding a made-up transaction. Credit cards are entered as the amount owed.
+ */
+function SetBalanceDialog({ account, onClose }: { account: Account; onClose: () => void }) {
+  const invalidate = useInvalidateMoney();
+  const card = account.type === "CREDIT_CARD";
+  const shown = card ? Math.max(0, -account.balance) : account.balance;
+  const [v, setV] = useState(String(Math.round(shown * 100) / 100));
+  const [busy, setBusy] = useState(false);
+  const target = v === "" ? null : card ? -Number(v) : Number(v);
+  const diff = target === null ? 0 : Math.round((target - account.balance) * 100) / 100;
+
+  async function save() {
+    if (target === null) return;
+    setBusy(true);
+    try {
+      await api.post(`/accounts/${account.id}/balance`, { balance: target });
+      invalidate();
+      toast.success(`${account.name} balance updated`);
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Couldn't update the balance");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent title={`Set ${account.name} balance`}
+        description={card ? "Enter what you owe on this card right now, as your card app shows it." : "Enter the balance your bank app shows right now."}>
+        <Field label={card ? "Amount owed now (₹)" : "Balance now (₹)"} htmlFor="sb-amount">
+          <AmountInput id="sb-amount" className="num text-lg" value={v} onValueChange={setV} allowNegative={!card} autoFocus />
+        </Field>
+        <p className="mt-3 text-sm text-ink-2">
+          Arth shows <span className="num font-semibold text-ink">{card ? `${inr(shown)} owed` : inr(account.balance)}</span> now.
+          {target !== null && diff !== 0 && (
+            <> It will change by <span className={cn("num font-semibold", diff > 0 ? "text-in" : "text-out")}>{diff > 0 ? "+" : "−"}{inr(Math.abs(diff), { paise: diff % 1 !== 0 })}</span>.</>
+          )}
+        </p>
+        <p className="mt-2 text-xs text-ink-3">
+          This corrects the starting balance; your transactions and spending totals stay as they are. If the difference is a payment Arth missed, add it as a transaction instead so it shows up in your spending.
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button disabled={busy || target === null || diff === 0} onClick={save}>{busy ? "Saving…" : "Update balance"}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
